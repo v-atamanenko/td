@@ -40,6 +40,9 @@
 #elif TD_SOLARIS
   #define TD_POLL_POLL 1
   #define TD_EVENTFD_BSD 1
+#elif TD_VITA
+  #define TD_POLL_SELECT 1
+  #define TD_EVENTFD_UNSUPPORTED 1
 #else
   #error "Poll's implementation is not defined"
 #endif

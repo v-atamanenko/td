@@ -4,6 +4,11 @@ if (NOT DEFINED CMAKE_INSTALL_BINDIR)
   set(CMAKE_INSTALL_BINDIR "bin")
 endif()
 
+if (POLICY CMP0065)
+  # fix "arm-vita-eabi-g++ is not able to compile a simple test program." https://github.com/tdlib/td/issues/1558
+  cmake_policy(SET CMP0065 NEW)
+endif()
+
 file(MAKE_DIRECTORY auto/td/telegram)
 file(MAKE_DIRECTORY auto/td/mtproto)
 file(MAKE_DIRECTORY auto/tlo)

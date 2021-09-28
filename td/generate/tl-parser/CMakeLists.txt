@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 
+if (POLICY CMP0065)
+  # fix "arm-vita-eabi-g++ is not able to compile a simple test program." https://github.com/tdlib/td/issues/1558
+  cmake_policy(SET CMP0065 NEW)
+endif()
+
 project(tl-parser LANGUAGES C)
 
 set(SOURCES crc32.h crc32.c tlc.c tl-parser.c tl-parser.h tl-parser-tree.h tl-tl.h portable_endian.h)

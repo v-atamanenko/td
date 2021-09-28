@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
 
+if (POLICY CMP0065)
+    # fix "arm-vita-eabi-g++ is not able to compile a simple test program." https://github.com/tdlib/td/issues/1558
+    cmake_policy(SET CMP0065 NEW)
+endif()
+
 #SOURCE SETS
 set(TDTL_SOURCE
   td/tl/tl_config.cpp

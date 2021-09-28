@@ -45,6 +45,12 @@
 #include <sys/syslimits.h>
 #endif
 
+#if TD_VITA
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#endif
+
 #include <cerrno>
 #include <cstdlib>
 #include <string>

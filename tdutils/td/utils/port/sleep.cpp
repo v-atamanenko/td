@@ -16,6 +16,11 @@
 #endif
 #endif
 
+#if TD_VITA
+#define __SPU__ 1
+#include <machine/time.h>
+#endif
+
 namespace td {
 
 void usleep_for(int32 microseconds) {

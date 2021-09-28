@@ -14,7 +14,7 @@
 // anonymous maps,
 // huge pages?
 
-#if TD_WINDOWS
+#if TD_WINDOWS || TD_VITA
 #else
 #include <sys/mman.h>
 #include <unistd.h>
@@ -39,7 +39,7 @@ class MemoryMapping::Impl {
 };
 
 static Result<int64> get_page_size() {
-#if TD_WINDOWS
+#if TD_WINDOWS || TD_VITA
   return Status::Error("Unimplemented");
 #else
   static Result<int64> page_size = []() -> Result<int64> {
@@ -58,7 +58,7 @@ Result<MemoryMapping> MemoryMapping::create_anonymous(const MemoryMapping::Optio
 }
 
 Result<MemoryMapping> MemoryMapping::create_from_file(const FileFd &file_fd, const MemoryMapping::Options &options) {
-#if TD_WINDOWS
+#if TD_WINDOWS || TD_VITA
   return Status::Error("Unsupported yet");
 #else
   if (file_fd.empty()) {

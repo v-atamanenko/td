@@ -60,7 +60,7 @@
   #define TD_UNIX_UNKNOWN 1
   #define TD_CYGWIN 1
 #else
-  #error "Probably unsupported platform. Feel free to remove the error and try to recompile"
+  #define TD_VITA 1
 #endif
 
 #if defined(__ICC) || defined(__INTEL_COMPILER)

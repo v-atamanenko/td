@@ -69,7 +69,9 @@ using void_t = typename voider<T...>::type;
 template <class T, class = void>
 struct TimeNsec {
   static std::pair<int, int> get(const T &) {
+#ifndef TD_VITA
     T().warning("Platform lacks support of precise access/modification file times, comment this line to continue");
+#endif
     return {0, 0};
   }
 };

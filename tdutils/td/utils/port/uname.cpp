@@ -30,7 +30,9 @@
 #include <sys/sysctl.h>
 #include <sys/types.h>
 #endif
+#ifndef TD_VITA
 #include <sys/utsname.h>
+#endif
 #endif
 
 #endif
@@ -194,7 +196,10 @@ Slice get_operating_system_version() {
       return os_name;
     }
 #endif
-
+#if TD_VITA
+    //TODO: Identify FW version
+    return "PSVita";
+#else
     struct utsname name;
     int err = uname(&name);
     if (err == 0) {
@@ -204,6 +209,7 @@ Slice get_operating_system_version() {
         return os_name;
       }
     }
+#endif
 #endif
     LOG(ERROR) << "Failed to identify OS name; use generic one";
 
@@ -221,6 +227,8 @@ Slice get_operating_system_version() {
     return "NetBSD";
 #elif TD_CYGWIN
     return "Cygwin";
+#elif TD_VITA
+    return "PSVita";
 #else
     return "Unix";
 #endif

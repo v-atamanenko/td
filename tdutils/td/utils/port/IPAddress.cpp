@@ -303,7 +303,8 @@ void IPAddress::init_ipv6_any() {
   is_valid_ = true;
   std::memset(&ipv6_addr_, 0, sizeof(ipv6_addr_));
   ipv6_addr_.sin6_family = AF_INET6;
-  ipv6_addr_.sin6_addr = in6addr_any;
+  #define IN6ADDR_ANY_INIT { { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } } }
+  ipv6_addr_.sin6_addr = IN6ADDR_ANY_INIT;
   ipv6_addr_.sin6_port = 0;
 }
 
@@ -432,7 +433,7 @@ Status IPAddress::init_host_port(CSlice host, CSlice port, bool prefer_ipv6) {
   LOG(DEBUG + 10) << "Trying to init IP address of " << host << " with port " << port;
   auto err = getaddrinfo(host.c_str(), port.c_str(), &hints, &info);
   if (err != 0) {
-#if TD_WINDOWS
+#if TD_WINDOWS || TD_VITA
     return OS_SOCKET_ERROR("Failed to resolve host");
 #else
     return Status::Error(PSLICE() << "Failed to resolve host: " << gai_strerror(err));

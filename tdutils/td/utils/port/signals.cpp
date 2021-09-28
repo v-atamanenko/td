@@ -13,10 +13,17 @@
 #include "td/utils/common.h"
 #include "td/utils/format.h"
 
-#if TD_PORT_POSIX
+#if TD_VITA
+#define __rtems__ 1
+#define _POSIX_REALTIME_SIGNALS 1
+#include <sys/signal.h>
+#include <sys/unistd.h>
+#endif
+
+#if TD_PORT_POSIX && !defined(TD_VITA)
 #include <signal.h>
-#include <sys/mman.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #endif
 #if TD_PORT_WINDOWS
 #include <csignal>
@@ -31,7 +38,7 @@
 
 namespace td {
 
-#if TD_PORT_POSIX && !TD_DARWIN_TV_OS && !TD_DARWIN_WATCH_OS
+#if TD_PORT_POSIX && !TD_DARWIN_TV_OS && !TD_DARWIN_WATCH_OS && !defined(TD_VITA)
 static Status protect_memory(void *addr, size_t len) {
   if (mprotect(addr, len, PROT_NONE) != 0) {
     return OS_ERROR("mprotect failed");
@@ -41,7 +48,7 @@ static Status protect_memory(void *addr, size_t len) {
 #endif
 
 Status setup_signals_alt_stack() {
-#if TD_PORT_POSIX && !TD_DARWIN_TV_OS && !TD_DARWIN_WATCH_OS
+#if TD_PORT_POSIX && !TD_DARWIN_TV_OS && !TD_DARWIN_WATCH_OS  && !defined(TD_VITA)
   auto page_size = getpagesize();
   auto stack_size = (MINSIGSTKSZ + 16 * page_size - 1) / page_size * page_size;
 
@@ -65,7 +72,7 @@ Status setup_signals_alt_stack() {
   return Status::OK();
 }
 
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX || TD_VITA
 static void set_handler(struct sigaction &act, decltype(act.sa_handler) handler) {
   act.sa_handler = handler;
 }
@@ -82,7 +89,11 @@ static Status set_signal_handler_impl(vector<int> signals, F func) {
   for (auto signal : signals) {
     sigaddset(&act.sa_mask, signal);
   }
+#ifdef TD_VITA
+  act.sa_flags = SA_ONSTACK;
+#else
   act.sa_flags = SA_RESTART | SA_ONSTACK;
+#endif
   set_handler(act, func);
 
   for (auto signal : signals) {
@@ -96,7 +107,11 @@ static Status set_signal_handler_impl(vector<int> signals, F func) {
 static vector<int> get_native_signals(SignalType type) {
   switch (type) {
     case SignalType::Abort:
+#ifdef TD_VITA
+      return {SIGABRT};
+#else
       return {SIGABRT, SIGXCPU, SIGXFSZ};
+#endif
     case SignalType::Error:
       return {SIGILL, SIGFPE, SIGBUS, SIGSEGV, SIGSYS};
     case SignalType::Quit:
@@ -108,7 +123,11 @@ static vector<int> get_native_signals(SignalType type) {
     case SignalType::User:
       return {SIGUSR1, SIGUSR2};
     case SignalType::Other:
+#ifdef TD_VITA
+      return {SIGTRAP, SIGALRM, SIGTSTP, SIGTTIN, SIGTTOU};
+#else
       return {SIGTRAP, SIGALRM, SIGVTALRM, SIGPROF, SIGTSTP, SIGTTIN, SIGTTOU};
+#endif
     default:
       return {};
   }
@@ -166,12 +185,12 @@ Status set_signal_handler(SignalType type, void (*func)(int sig)) {
 using extended_signal_handler = void (*)(int sig, void *addr);
 static extended_signal_handler extended_signal_handlers[NSIG] = {};
 
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
 static void siginfo_handler(int signum, siginfo_t *info, void *data) {
   auto handler = extended_signal_handlers[signum];
   handler(signum, info->si_addr);
 }
-#elif TD_PORT_WINDOWS
+#elif TD_PORT_WINDOWS || TD_VITA
 static void siginfo_handler(int signum) {
   auto handler = extended_signal_handlers[signum];
   handler(signum, nullptr);
@@ -313,7 +332,7 @@ void signal_safe_write_pointer(void *p, bool add_header) {
 }
 
 static void block_stdin() {
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
   Stdin().get_native_fd().set_is_blocking(true).ignore();
 #endif
 }
@@ -331,7 +350,7 @@ static void default_failure_signal_handler(int sig) {
 }
 
 Status set_default_failure_signal_handler() {
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
   Stdin();  // init static variables before atexit
   std::atexit(block_stdin);
 #endif

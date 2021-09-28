@@ -10,7 +10,7 @@
 
 #include "td/utils/misc.h"
 
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -18,7 +18,7 @@
 
 namespace td {
 
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
 static int get_resource(ResourceLimitType type) {
   switch (type) {
     case ResourceLimitType::NoFile:
@@ -31,7 +31,7 @@ static int get_resource(ResourceLimitType type) {
 #endif
 
 Status set_resource_limit(ResourceLimitType type, uint64 value, uint64 max_value) {
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
   if (max_value != 0 && value > max_value) {
     return Status::Error("New resource limit value must not be bigger than max_value");
   }
@@ -56,13 +56,13 @@ Status set_resource_limit(ResourceLimitType type, uint64 value, uint64 max_value
     return OS_ERROR("Failed to set resource limit");
   }
   return Status::OK();
-#elif TD_PORT_WINDOWS
+#elif TD_PORT_WINDOWS || TD_VITA
   return Status::OK();  // Windows has no limits
 #endif
 }
 
 Status set_maximize_resource_limit(ResourceLimitType type, uint64 value) {
-#if TD_PORT_POSIX
+#if TD_PORT_POSIX && !defined(TD_VITA)
   int resource = get_resource(type);
 
   rlimit rlim;
@@ -89,7 +89,7 @@ Status set_maximize_resource_limit(ResourceLimitType type, uint64 value) {
     return OS_ERROR("Failed to set resource limit");
   }
   return Status::OK();
-#elif TD_PORT_WINDOWS
+#elif TD_PORT_WINDOWS || TD_VITA
   return Status::OK();  // Windows has no limits
 #endif
 }
