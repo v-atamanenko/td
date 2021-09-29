@@ -5,7 +5,16 @@ if (POLICY CMP0065)
   cmake_policy(SET CMP0065 NEW)
 endif()
 
+# Weird bug, most likely, in the CMake itself: CMAKE_CROSSCOMPILING gets redefined to "FALSE" after project() call,
+# so we store the value in temp variable.
+SET(CMAKE_CROSSCOMPILING_TEMP "FALSE")
+if (CMAKE_CROSSCOMPILING)
+  SET(CMAKE_CROSSCOMPILING_TEMP "TRUE")
+endif()
+
 project(TDLib VERSION 1.7.4 LANGUAGES CXX C)
+
+SET(CMAKE_CROSSCOMPILING "${CMAKE_CROSSCOMPILING_TEMP}")
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")

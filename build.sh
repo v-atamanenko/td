@@ -1,5 +1,3 @@
-cp -r vitaports/* /usr/local/vitasdk/arm-vita-eabi/include/
-
 rm -rf build
 mkdir build && cd build
 

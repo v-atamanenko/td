@@ -8,6 +8,10 @@
 
 #include "td/utils/common.h"
 
+#ifdef __vita__
+int usleep(unsigned useconds);
+#endif
+
 namespace td {
 
 void usleep_for(int32 microseconds);

@@ -273,13 +273,6 @@ set(TDUTILS_SOURCE
   td/utils/VectorQueue.h
 )
 
-if (__vita__)
-  set(TDUTILS_SOURCE
-          td/utils/port/uio.c
-          ${TDUTILS_SOURCE}
-          )
-endif ()
-
 if (TDUTILS_MIME_TYPE)
   set(TDUTILS_SOURCE
     ${TDUTILS_SOURCE}

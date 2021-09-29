@@ -121,7 +121,9 @@ function(td_set_up_compiler)
     add_cxx_compiler_flag("-Qunused-arguments")
     add_cxx_compiler_flag("-Wodr")
     add_cxx_compiler_flag("-flto-odr-type-merging")
+
     add_cxx_compiler_flag("-Wno-psabi") # "parameter passing for argument changed in GCC 7.1" (arm-vita-eabi)
+    add_cxx_compiler_flag("-Wunused-function")
 
   #  add_cxx_compiler_flag("-Werror")
 

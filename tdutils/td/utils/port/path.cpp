@@ -301,7 +301,7 @@ Result<bool> walk_path_subdir(string &path, DIR *dir, const WalkFunction &func) 
       status = walk_path_file(path, func);
     }
 #else
-#if !TD_SOLARIS
+#if !TD_SOLARIS && !TD_VITA
 #warning "Slow walk_path"
 #endif
     status = walk_path(path, func);

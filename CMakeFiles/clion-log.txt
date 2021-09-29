@@ -1,0 +1,3 @@
+/snap/clion/164/bin/cmake/linux/bin/cmake -DCMAKE_C_COMPILER=/usr/local/vitasdk/bin/arm-vita-eabi-gcc -DCMAKE_CXX_COMPILER=/usr/local/vitasdk/bin/arm-vita-eabi-g++ --build -DCMAKE_DEPENDS_USE_COMPILER=FALSE -G "CodeBlocks - Unix Makefiles" /home/v/Repos/td
+CMake Error: Unknown argument --build
+CMake Error: Run 'cmake --help' for all supported options.

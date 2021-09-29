@@ -1,4 +1,5 @@
 rm -rf build_native
+rm -rf build
 
 mkdir build_native && cd build_native
 cmake ..
