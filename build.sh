@@ -8,7 +8,7 @@ export CMAKE_PREFIX_PATH=/usr/local/vitasdk/arm-vita-eabi/
 
 echo "STAGE: Configuring compiler for cross-compilation"
 
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING=True -DOPENSSL_INCLUDE_DIR=/usr/local/vitasdk/arm-vita-eabi/include/ -DOPENSSL_LIBRARIES="/usr/local/vitasdk/arm-vita-eabi/lib/libssl.a;/usr/local/vitasdk/arm-vita-eabi/lib/libcrypto.a" ..
+cmake -D__vita__=True -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING=True -DOPENSSL_INCLUDE_DIR=/usr/local/vitasdk/arm-vita-eabi/include/ -DOPENSSL_LIBRARIES="/usr/local/vitasdk/arm-vita-eabi/lib/libssl.a;/usr/local/vitasdk/arm-vita-eabi/lib/libcrypto.a" ..
 
 echo "STAGE: Compilation"
 rm -rf tdutils/generate
