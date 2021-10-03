@@ -182,6 +182,9 @@ NativeFd::Socket NativeFd::socket() const {
 }
 
 Status NativeFd::set_is_blocking(bool is_blocking) const {
+#if __vita__
+  return Status::OK();
+#else
 #if TD_PORT_POSIX
   auto old_flags = fcntl(fd(), F_GETFL);
   if (old_flags == -1) {
@@ -196,9 +199,13 @@ Status NativeFd::set_is_blocking(bool is_blocking) const {
 #elif TD_PORT_WINDOWS
   return set_is_blocking_unsafe(is_blocking);
 #endif
+#endif
 }
 
 Status NativeFd::set_is_blocking_unsafe(bool is_blocking) const {
+#if __vita__
+  return Status::OK();
+#else
 #if TD_PORT_POSIX
   if (fcntl(fd(), F_SETFL, is_blocking ? 0 : O_NONBLOCK) == -1) {
 #elif TD_PORT_WINDOWS
@@ -208,6 +215,7 @@ Status NativeFd::set_is_blocking_unsafe(bool is_blocking) const {
     return OS_SOCKET_ERROR("Failed to change socket flags");
   }
   return Status::OK();
+#endif
 }
 
 Status NativeFd::duplicate(const NativeFd &to) const {

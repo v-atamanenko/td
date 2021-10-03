@@ -408,6 +408,9 @@ static Status create_local_lock(const string &path, int32 &max_tries) {
 }
 
 Status FileFd::lock(const LockFlags flags, const string &path, int32 max_tries) {
+#if __vita__
+  return Status::OK();
+#else
   if (max_tries <= 0) {
     return Status::Error(0, "Can't lock file: wrong max_tries");
   }
@@ -496,9 +499,13 @@ Status FileFd::lock(const LockFlags flags, const string &path, int32 max_tries) 
     need_local_unlock = false;
   }
   return Status::OK();
+#endif
 }
 
 void FileFd::remove_local_lock(const string &path) {
+#ifdef __vita__
+  return;
+#else
   if (path.empty() || ExitGuard::is_exited()) {
     return;
   }
@@ -506,6 +513,7 @@ void FileFd::remove_local_lock(const string &path) {
   std::unique_lock<std::mutex> lock(in_process_lock_mutex);
   auto erased_count = locked_files.erase(path);
   CHECK(erased_count > 0 || ExitGuard::is_exited());
+#endif
 }
 
 void FileFd::close() {
