@@ -4,8 +4,12 @@ function(td_set_up_compiler)
   set(CMAKE_EXPORT_COMPILE_COMMANDS 1 PARENT_SCOPE)
 
   set(CMAKE_POSITION_INDEPENDENT_CODE ON PARENT_SCOPE)
+  if (__vita__)
+    # Using -fPIC provokes "vita-elf-create: Invalid relocation type 25!" on linking tdlib
+    set(CMAKE_POSITION_INDEPENDENT_CODE OFF PARENT_SCOPE)
+  endif()
 
-  include(illumos)
+    include(illumos)
 
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(GCC 1)
