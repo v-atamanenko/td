@@ -12,15 +12,7 @@ if (CMAKE_CROSSCOMPILING)
   SET(CMAKE_CROSSCOMPILING_TEMP "TRUE")
 endif()
 
-
-if (NOT __vita__)
-  message(FATAL_ERROR "not vita 1")
-endif()
-
 project(TDLib VERSION 1.7.4 LANGUAGES CXX C)
-if (NOT __vita__)
-  message(FATAL_ERROR "not vita 2")
-endif()
 
 SET(CMAKE_CROSSCOMPILING "${CMAKE_CROSSCOMPILING_TEMP}")
 
@@ -813,6 +805,7 @@ target_include_directories(tdjson PUBLIC
 if (APPLE)
   set_target_properties(tdjson PROPERTIES LINK_FLAGS "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/tdclientjson_export_list")
 endif()
+endif()
 
 add_library(tdjson_static STATIC ${TD_JSON_SOURCE} ${TD_JSON_HEADERS})
 target_link_libraries(tdjson_static PRIVATE tdjson_private)
@@ -820,7 +813,6 @@ target_compile_definitions(tdjson_static PUBLIC TDJSON_STATIC_DEFINE)
 target_include_directories(tdjson_static PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-endif()
 
 if (EMSCRIPTEN)
   set(TD_EMSCRIPTEN_SRC td/telegram/td_emscripten.cpp)
@@ -866,20 +858,25 @@ endif()
 add_library(TdStatic INTERFACE)
 target_link_libraries(TdStatic INTERFACE tdclient)
 
-if (NOT __vita__)
+
+if(NOT __vita__)
 add_library(TdJson INTERFACE)
 target_link_libraries(TdJson INTERFACE tdjson)
+endif()
 
 add_library(TdJsonStatic INTERFACE)
 target_link_libraries(TdJsonStatic INTERFACE tdjson_static)
-endif()
 
 add_library(Td::TdStatic ALIAS TdStatic)
-if (NOT __vita__)
+
+if(NOT __vita__)
 add_library(Td::TdJson ALIAS TdJson)
-add_library(Td::TdJsonStatic ALIAS TdJsonStatic)
 endif()
-if (NOT __vita__)
+
+add_library(Td::TdJsonStatic ALIAS TdJsonStatic)
+
+
+if(NOT __vita__)
 install(TARGETS tdjson TdJson tdjson_static TdJsonStatic tdjson_private tdclient tdcore tdapi TdStatic EXPORT TdTargets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -887,7 +884,7 @@ install(TARGETS tdjson TdJson tdjson_static TdJsonStatic tdjson_private tdclient
   INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 else()
-  install(TARGETS tdjson_private tdclient tdcore tdapi TdStatic EXPORT TdTargets
+  install(TARGETS tdjson_static TdJsonStatic tdjson_private tdclient tdcore tdapi TdStatic EXPORT TdTargets
           LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
           ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
           RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
@@ -914,12 +911,10 @@ endif()
 # generate_pkgconfig(tdc "Telegram Library - C interface")
 generate_pkgconfig(tdapi "Telegram Library - API")
 generate_pkgconfig(tdjson_private "Telegram Library - JSON interface (private)")
-
-if (NOT __vita__)
-  message(FATAL_ERROR "not vita")
+if(NOT __vita__)
 generate_pkgconfig(tdjson "Telegram Library - JSON interface (shared)")
+endif()
 generate_pkgconfig(tdjson_static "Telegram Library - JSON interface (static)")
-endif ()
 
 install(EXPORT TdTargets
   FILE TdTargets.cmake
@@ -927,11 +922,8 @@ install(EXPORT TdTargets
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Td"
 )
 
-if (NOT __vita__)
 # Install tdjson/tdjson_static:
 install(FILES ${TD_JSON_HEADERS} "${CMAKE_CURRENT_BINARY_DIR}/td/telegram/tdjson_export.h" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
-endif()
-
 # Install tdclient:
 install(FILES td/telegram/Client.h td/telegram/Log.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/td/telegram")
 # Install tdapi:
@@ -955,7 +947,6 @@ install(FILES "TdConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/TdConfigVersion.cmak
 
 # Add SOVERSION to shared libraries
 set_property(TARGET tdclient PROPERTY SOVERSION "${TDLib_VERSION}")
-
-if (NOT __vita__)
+if(NOT __vita__)
 set_property(TARGET tdjson PROPERTY SOVERSION "${TDLib_VERSION}")
 endif()
