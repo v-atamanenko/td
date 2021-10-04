@@ -585,7 +585,7 @@ Status init_socket_options(NativeFd &native_fd) {
 
 #ifdef SO_NOSIGPIPE
   setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, reinterpret_cast<const char *>(&flags), sizeof(flags));
-#else
+#elifndef __vita__
 #warning "Failed to suppress SIGPIPE signals. Use signal(SIGPIPE, SIG_IGN) to suppress them."
 #endif
 
