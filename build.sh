@@ -1,5 +1,12 @@
+#!/bin/bash
+
+if [ $1 == '--incremental' ]
+then
+cd build
+else
 rm -rf build
 mkdir build && cd build
+fi
 
 export CROSS=/usr/local/vitasdk/bin/arm-vita-eabi
 export CC=${CROSS}-gcc
@@ -17,6 +24,5 @@ echo "STAGE: Compilation"
 #cp -r ../build_native/td/generate td/
 mkdir -p ./td/telegram/
 cp ../build_native/td/telegram/tdjson_export.h ./td/telegram/
-
 
 cmake --build . --target install
