@@ -182,7 +182,11 @@ Status unlink(CSlice path) {
 CSlice get_temporary_dir() {
   static bool is_inited = [] {
     if (temporary_dir.empty()) {
+#ifdef __vita__
+      const char *s = "ux0:/data/";
+#else
       const char *s = std::getenv("TMPDIR");
+#endif
       if (s != nullptr && s[0] != '\0') {
         temporary_dir = s;
       } else if (P_tmpdir != nullptr && P_tmpdir[0] != '\0') {
