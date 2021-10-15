@@ -1,3 +1,5 @@
+#!/bin/bash
+
 rm -rf build_native
 rm -rf build
 
