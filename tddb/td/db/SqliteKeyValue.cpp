@@ -6,23 +6,11 @@
 //
 #include "td/db/SqliteKeyValue.h"
 
+#include "td/utils/base64.h"
 #include "td/utils/logging.h"
 #include "td/utils/ScopeGuard.h"
 
 namespace td {
-
-Result<bool> SqliteKeyValue::init(string path) {
-  path_ = std::move(path);
-  bool is_created = false;
-  SqliteDb db;
-  TRY_STATUS(db.init(path, &is_created));
-  TRY_STATUS(db.exec("PRAGMA encoding=\"UTF-8\""));
-  TRY_STATUS(db.exec("PRAGMA synchronous=NORMAL"));
-  TRY_STATUS(db.exec("PRAGMA journal_mode=WAL"));
-  TRY_STATUS(db.exec("PRAGMA temp_store=MEMORY"));
-  TRY_STATUS(init_with_connection(std::move(db), "KV"));
-  return is_created;
-}
 
 Status SqliteKeyValue::init_with_connection(SqliteDb connection, string table_name) {
   auto init_guard = ScopeExit() + [&] {
@@ -67,7 +55,7 @@ SqliteKeyValue::SeqNo SqliteKeyValue::set(Slice key, Slice value) {
   set_stmt_.bind_blob(2, value).ensure();
   auto status = set_stmt_.step();
   if (status.is_error()) {
-    LOG(FATAL) << "Failed to set \"" << key << "\": " << status.error();
+    LOG(FATAL) << "Failed to set \"" << base64_encode(key) << "\": " << status.error();
   }
   // set_stmt_.step().ensure();
   set_stmt_.reset();

@@ -412,7 +412,7 @@ Status FileFd::lock(const LockFlags flags, const string &path, int32 max_tries) 
   return Status::OK();
 #else
   if (max_tries <= 0) {
-    return Status::Error(0, "Can't lock file: wrong max_tries");
+    return Status::Error("Can't lock file: wrong max_tries");
   }
 
   bool need_local_unlock = false;

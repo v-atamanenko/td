@@ -7,13 +7,12 @@
 #include "td/db/binlog/BinlogEvent.h"
 
 #include "td/utils/crypto.h"
+#include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/tl_parsers.h"
 #include "td/utils/tl_storers.h"
 
 namespace td {
-
-int32 VERBOSITY_NAME(binlog) = VERBOSITY_NAME(DEBUG) + 8;
 
 Status BinlogEvent::init(BufferSlice &&raw_event, bool check_crc) {
   TlParser parser(raw_event.as_slice());
@@ -64,7 +63,7 @@ BufferSlice BinlogEvent::create_raw(uint64 id, int32 type, int32 flags, const St
   tl_storer.store_storer(storer);
 
   CHECK(tl_storer.get_buf() == raw_event.as_slice().uend() - TAIL_SIZE);
-  tl_storer.store_int(::td::crc32(raw_event.as_slice().truncate(raw_event.size() - TAIL_SIZE)));
+  tl_storer.store_int(crc32(raw_event.as_slice().truncate(raw_event.size() - TAIL_SIZE)));
 
   return raw_event;
 }

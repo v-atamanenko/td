@@ -10,23 +10,23 @@
 #include "td/utils/logging.h"
 #include "td/utils/Time.h"
 
-class Worker : public td::Actor {
+class Worker final : public td::Actor {
  public:
   void ping(int x) {
     LOG(ERROR) << "Got ping " << x;
   }
 };
 
-class MainActor : public td::Actor {
+class MainActor final : public td::Actor {
  public:
-  void start_up() override {
+  void start_up() final {
     LOG(ERROR) << "Start up";
     set_timeout_in(10);
     worker_ = td::create_actor_on_scheduler<Worker>("Worker", 1);
     send_closure(worker_, &Worker::ping, 123);
   }
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     LOG(ERROR) << "Timeout expired";
     td::Scheduler::instance()->finish();
   }

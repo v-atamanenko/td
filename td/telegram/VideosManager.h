@@ -28,7 +28,7 @@ class VideosManager {
 
   int32 get_video_duration(FileId file_id) const;
 
-  tl_object_ptr<td_api::video> get_video_object(FileId file_id);
+  tl_object_ptr<td_api::video> get_video_object(FileId file_id) const;
 
   void create_video(FileId file_id, string minithumbnail, PhotoSize thumbnail, AnimationSize animated_thumbnail,
                     bool has_stickers, vector<FileId> &&sticker_file_ids, string file_name, string mime_type,
@@ -51,7 +51,7 @@ class VideosManager {
 
   FileId dup_video(FileId new_id, FileId old_id);
 
-  bool merge_videos(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_videos(FileId new_id, FileId old_id, bool can_delete_old);
 
   template <class StorerT>
   void store_video(FileId file_id, StorerT &storer) const;
@@ -78,8 +78,6 @@ class VideosManager {
     vector<FileId> sticker_file_ids;
 
     FileId file_id;
-
-    bool is_changed = true;
   };
 
   const Video *get_video(FileId file_id) const;

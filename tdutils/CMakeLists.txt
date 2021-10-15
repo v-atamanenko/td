@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
+if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
+  message(FATAL_ERROR "CMake >= 3.0.2 is required")
+endif()
 
 option(TDUTILS_MIME_TYPE "Generate mime types conversion; requires gperf" ON)
 
@@ -88,6 +90,7 @@ set(TDUTILS_SOURCE
   td/utils/BufferedUdp.cpp
   td/utils/check.cpp
   td/utils/crypto.cpp
+  td/utils/emoji.cpp
   td/utils/ExitGuard.cpp
   td/utils/FileLog.cpp
   td/utils/filesystem.cpp
@@ -192,6 +195,7 @@ set(TDUTILS_SOURCE
   td/utils/crypto.h
   td/utils/DecTree.h
   td/utils/Destructor.h
+  td/utils/emoji.h
   td/utils/Enumerator.h
   td/utils/EpochBasedMemoryReclamation.h
   td/utils/ExitGuard.h
@@ -254,10 +258,10 @@ set(TDUTILS_SOURCE
   td/utils/Time.h
   td/utils/TimedStat.h
   td/utils/Timer.h
-  td/utils/TsFileLog.h
   td/utils/tl_helpers.h
   td/utils/tl_parsers.h
   td/utils/tl_storers.h
+  td/utils/TlDowncastHelper.h
   td/utils/translit.h
   td/utils/TsCerr.h
   td/utils/TsFileLog.h
@@ -292,6 +296,7 @@ set(TDUTILS_TEST_SOURCE
   ${CMAKE_CURRENT_SOURCE_DIR}/test/gzip.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/HazardPointers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/heap.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/HttpUrl.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/json.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/List.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/log.cpp

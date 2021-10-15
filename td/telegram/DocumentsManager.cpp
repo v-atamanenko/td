@@ -17,18 +17,16 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/secret_api.h"
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/VideoNotesManager.h"
 #include "td/telegram/VideosManager.h"
 #include "td/telegram/VoiceNotesManager.h"
 
-#include "td/telegram/secret_api.h"
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/utils/common.h"
-#include "td/utils/format.h"
 #include "td/utils/HttpUrl.h"
 #include "td/utils/logging.h"
 #include "td/utils/MimeType.h"
@@ -48,15 +46,16 @@ namespace td {
 DocumentsManager::DocumentsManager(Td *td) : td_(td) {
 }
 
-tl_object_ptr<td_api::document> DocumentsManager::get_document_object(FileId file_id, PhotoFormat thumbnail_format) {
+tl_object_ptr<td_api::document> DocumentsManager::get_document_object(FileId file_id,
+                                                                      PhotoFormat thumbnail_format) const {
   if (!file_id.is_valid()) {
     return nullptr;
   }
 
-  LOG(INFO) << "Return document " << file_id << " object";
-  auto &document = documents_[file_id];
-  LOG_CHECK(document != nullptr) << tag("file_id", file_id);
-  document->is_changed = false;
+  auto it = documents_.find(file_id);
+  CHECK(it != documents_.end());
+  auto document = it->second.get();
+  CHECK(document != nullptr);
   return make_tl_object<td_api::document>(
       document->file_name, document->mime_type, get_minithumbnail_object(document->minithumbnail),
       get_thumbnail_object(td_->file_manager_.get(), document->thumbnail, thumbnail_format),
@@ -78,7 +77,8 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
     switch (attribute->get_id()) {
       case telegram_api::documentAttributeImageSize::ID: {
         auto image_size = move_tl_object_as<telegram_api::documentAttributeImageSize>(attribute);
-        dimensions = get_dimensions(image_size->w_, image_size->h_, "documentAttributeImageSize");
+        dimensions =
+            get_dimensions(image_size->w_, image_size->h_, oneline(to_string(remote_document.document)).c_str());
         break;
       }
       case telegram_api::documentAttributeAnimated::ID:
@@ -119,9 +119,14 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
     }
 
     if (animated != nullptr) {
-      // video animation
       type_attributes--;
-      video = nullptr;
+      if ((video->flags_ & telegram_api::documentAttributeVideo::ROUND_MESSAGE_MASK) != 0) {
+        // video note without sound
+        animated = nullptr;
+      } else {
+        // video animation
+        video = nullptr;
+      }
     }
   }
   if (animated != nullptr && audio != nullptr) {
@@ -481,16 +486,13 @@ FileId DocumentsManager::on_get_document(unique_ptr<GeneralDocument> new_documen
     if (d->mime_type != new_document->mime_type) {
       LOG(DEBUG) << "Document " << file_id << " mime_type has changed";
       d->mime_type = new_document->mime_type;
-      d->is_changed = true;
     }
     if (d->file_name != new_document->file_name) {
       LOG(DEBUG) << "Document " << file_id << " file_name has changed";
       d->file_name = new_document->file_name;
-      d->is_changed = true;
     }
     if (d->minithumbnail != new_document->minithumbnail) {
       d->minithumbnail = std::move(new_document->minithumbnail);
-      d->is_changed = true;
     }
     if (d->thumbnail != new_document->thumbnail) {
       if (!d->thumbnail.file_id.is_valid()) {
@@ -500,7 +502,6 @@ FileId DocumentsManager::on_get_document(unique_ptr<GeneralDocument> new_documen
                   << new_document->thumbnail;
       }
       d->thumbnail = new_document->thumbnail;
-      d->is_changed = true;
     }
   }
 
@@ -513,7 +514,9 @@ void DocumentsManager::create_document(FileId file_id, string minithumbnail, Pho
   d->file_id = file_id;
   d->file_name = std::move(file_name);
   d->mime_type = std::move(mime_type);
-  d->minithumbnail = std::move(minithumbnail);
+  if (!td_->auth_manager_->is_bot()) {
+    d->minithumbnail = std::move(minithumbnail);
+  }
   d->thumbnail = std::move(thumbnail);
   on_get_document(std::move(d), replace);
 }
@@ -644,23 +647,17 @@ FileId DocumentsManager::dup_document(FileId new_id, FileId old_id) {
   return new_id;
 }
 
-bool DocumentsManager::merge_documents(FileId new_id, FileId old_id, bool can_delete_old) {
-  if (!old_id.is_valid()) {
-    LOG(ERROR) << "Old file identifier is invalid";
-    return true;
-  }
+void DocumentsManager::merge_documents(FileId new_id, FileId old_id, bool can_delete_old) {
+  CHECK(old_id.is_valid() && new_id.is_valid());
+  CHECK(new_id != old_id);
 
   LOG(INFO) << "Merge documents " << new_id << " and " << old_id;
   const GeneralDocument *old_ = get_document(old_id);
   CHECK(old_ != nullptr);
-  if (old_id == new_id) {
-    return old_->is_changed;
-  }
 
   auto new_it = documents_.find(new_id);
   if (new_it == documents_.end()) {
     auto &old = documents_[old_id];
-    old->is_changed = true;
     if (!can_delete_old) {
       dup_document(new_id, old_id);
     } else {
@@ -674,14 +671,11 @@ bool DocumentsManager::merge_documents(FileId new_id, FileId old_id, bool can_de
     if (old_->thumbnail != new_->thumbnail) {
       // LOG_STATUS(td_->file_manager_->merge(new_->thumbnail.file_id, old_->thumbnail.file_id));
     }
-
-    new_->is_changed = true;
   }
   LOG_STATUS(td_->file_manager_->merge(new_id, old_id));
   if (can_delete_old) {
     documents_.erase(old_id);
   }
-  return true;
 }
 
 string DocumentsManager::get_document_search_text(FileId file_id) const {

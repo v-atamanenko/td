@@ -7,9 +7,9 @@
 #include "td/telegram/DialogFilter.h"
 
 #include "td/telegram/DialogId.h"
-#include "td/telegram/misc.h"
 
 #include "td/utils/algorithm.h"
+#include "td/utils/emoji.h"
 #include "td/utils/format.h"
 #include "td/utils/logging.h"
 
@@ -401,8 +401,9 @@ void DialogFilter::init_icon_names() {
                               "Mask",  "Party",  "Sport",   "Study",    "Trade",    "Travel", "Work"};
     CHECK(emojis.size() == icon_names.size());
     for (size_t i = 0; i < emojis.size(); i++) {
-      emoji_to_icon_name_[remove_emoji_modifiers(emojis[i])] = icon_names[i];
-      icon_name_to_emoji_[icon_names[i]] = remove_emoji_modifiers(emojis[i]);
+      remove_emoji_modifiers_in_place(emojis[i]);
+      emoji_to_icon_name_[emojis[i]] = icon_names[i];
+      icon_name_to_emoji_[icon_names[i]] = emojis[i];
     }
     return true;
   }();

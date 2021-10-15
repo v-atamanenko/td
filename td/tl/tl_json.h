@@ -16,7 +16,7 @@
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
-#include "td/utils/tl_storers.h"
+#include "td/utils/TlDowncastHelper.h"
 
 #include <type_traits>
 
@@ -150,21 +150,6 @@ Status from_json(std::vector<T> &to, JsonValue from) {
 }
 
 template <class T>
-class DowncastHelper : public T {
- public:
-  explicit DowncastHelper(int32 constructor) : constructor_(constructor) {
-  }
-  int32 get_id() const override {
-    return constructor_;
-  }
-  void store(TlStorerToString &s, const char *field_name) const override {
-  }
-
- private:
-  int32 constructor_{0};
-};
-
-template <class T>
 std::enable_if_t<!std::is_constructible<T>::value, Status> from_json(tl_object_ptr<T> &to, JsonValue from) {
   if (from.type() != JsonValue::Type::Object) {
     if (from.type() == JsonValue::Type::Null) {
@@ -185,7 +170,7 @@ std::enable_if_t<!std::is_constructible<T>::value, Status> from_json(tl_object_p
     return Status::Error(PSLICE() << "Expected String or Integer, got " << constructor_value.type());
   }
 
-  DowncastHelper<T> helper(constructor);
+  TlDowncastHelper<T> helper(constructor);
   Status status;
   bool ok = downcast_call(static_cast<T &>(helper), [&](auto &dummy) {
     auto result = make_tl_object<std::decay_t<decltype(dummy)>>();

@@ -6,10 +6,10 @@
 //
 #pragma once
 
-#include "td/actor/actor.h"
-
 #include "td/telegram/files/FileLoaderActor.h"
 #include "td/telegram/files/ResourceState.h"
+
+#include "td/actor/actor.h"
 
 #include "td/utils/Container.h"
 #include "td/utils/Heap.h"
@@ -18,7 +18,7 @@
 
 namespace td {
 
-class ResourceManager : public Actor {
+class ResourceManager final : public Actor {
  public:
   enum class Mode : int32 { Baseline, Greedy };
   explicit ResourceManager(Mode mode) : mode_(mode) {
@@ -34,7 +34,7 @@ class ResourceManager : public Actor {
  private:
   Mode mode_;
   using NodeId = uint64;
-  struct Node : public HeapNode {
+  struct Node final : public HeapNode {
     NodeId node_id;
 
     ResourceState resource_state_;
@@ -56,9 +56,9 @@ class ResourceManager : public Actor {
   ActorShared<> parent_;
   bool stop_flag_ = false;
 
-  void hangup_shared() override;
+  void hangup_shared() final;
 
-  void loop() override;
+  void loop() final;
 
   void add_to_heap(Node *node);
   bool satisfy_node(NodeId file_node_id);

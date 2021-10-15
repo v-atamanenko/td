@@ -32,10 +32,14 @@ class DialogAction {
     RecordingVideoNote,
     UploadingVideoNote,
     SpeakingInVoiceChat,
-    ImportingMessages
+    ImportingMessages,
+    ChoosingSticker,
+    WatchingAnimations,
+    ClickingAnimatedEmoji
   };
   Type type_ = Type::Cancel;
   int32 progress_ = 0;
+  string emoji_;
 
   DialogAction(Type type, int32 progress);
 
@@ -43,12 +47,18 @@ class DialogAction {
 
   void init(Type type, int32 progress);
 
+  void init(Type type, string emoji);
+
+  void init(Type type, int32 message_id, string emoji, string data);
+
+  static bool is_valid_emoji(string &emoji);
+
  public:
   DialogAction() = default;
 
-  explicit DialogAction(tl_object_ptr<td_api::ChatAction> &&action);
+  explicit DialogAction(td_api::object_ptr<td_api::ChatAction> &&action);
 
-  explicit DialogAction(tl_object_ptr<telegram_api::SendMessageAction> &&action);
+  explicit DialogAction(telegram_api::object_ptr<telegram_api::SendMessageAction> &&action);
 
   tl_object_ptr<telegram_api::SendMessageAction> get_input_send_message_action() const;
 
@@ -56,7 +66,7 @@ class DialogAction {
 
   td_api::object_ptr<td_api::ChatAction> get_chat_action_object() const;
 
-  bool is_cancelled_by_message_of_type(MessageContentType message_content_type) const;
+  bool is_canceled_by_message_of_type(MessageContentType message_content_type) const;
 
   static DialogAction get_uploading_action(MessageContentType message_content_type, int32 progress);
 
@@ -66,8 +76,17 @@ class DialogAction {
 
   int32 get_importing_messages_action_progress() const;
 
+  string get_watching_animations_emoji() const;
+
+  struct ClickingAnimateEmojiInfo {
+    int32 message_id;
+    string emoji;
+    string data;
+  };
+  ClickingAnimateEmojiInfo get_clicking_animated_emoji_action_info() const;
+
   friend bool operator==(const DialogAction &lhs, const DialogAction &rhs) {
-    return lhs.type_ == rhs.type_ && lhs.progress_ == rhs.progress_;
+    return lhs.type_ == rhs.type_ && lhs.progress_ == rhs.progress_ && lhs.emoji_ == rhs.emoji_;
   }
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const DialogAction &action);

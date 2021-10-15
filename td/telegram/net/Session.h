@@ -9,10 +9,10 @@
 #include "td/telegram/net/AuthDataShared.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/TempAuthKeyWatchdog.h"
-#include "td/telegram/StateManager.h"
 
 #include "td/mtproto/AuthData.h"
 #include "td/mtproto/AuthKey.h"
+#include "td/mtproto/ConnectionManager.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/SessionConnection.h"
 
@@ -61,9 +61,8 @@ class Session final
     virtual void request_raw_connection(unique_ptr<mtproto::AuthData> auth_data,
                                         Promise<unique_ptr<mtproto::RawConnection>>) = 0;
     virtual void on_tmp_auth_key_updated(mtproto::AuthKey auth_key) = 0;
-    virtual void on_server_salt_updated(std::vector<mtproto::ServerSalt> server_salts) {
-    }
-    // one still have to call close after on_closed
+    virtual void on_server_salt_updated(std::vector<mtproto::ServerSalt> server_salts) = 0;
+    virtual void on_update(BufferSlice &&update) = 0;
     virtual void on_result(NetQueryPtr net_query) = 0;
   };
 
@@ -76,7 +75,7 @@ class Session final
   void close();
 
  private:
-  struct Query : private ListNode {
+  struct Query final : private ListNode {
     uint64 container_id;
     NetQueryPtr query;
 
@@ -154,7 +153,7 @@ class Session final
   ConnectionInfo *current_info_;
   ConnectionInfo main_connection_;
   ConnectionInfo long_poll_connection_;
-  StateManager::ConnectionToken connection_token_;
+  mtproto::ConnectionManager::ConnectionToken connection_token_;
 
   double cached_connection_timestamp_ = 0;
   unique_ptr<mtproto::RawConnection> cached_connection_;
@@ -191,29 +190,31 @@ class Session final
   void auth_loop();
 
   // mtproto::Connection::Callback
-  void on_connected() override;
-  void on_closed(Status status) override;
+  void on_connected() final;
+  void on_closed(Status status) final;
 
-  Status on_pong() override;
+  Status on_pong() final;
 
-  void on_auth_key_updated() override;
-  void on_tmp_auth_key_updated() override;
-  void on_server_salt_updated() override;
-  void on_server_time_difference_updated() override;
+  void on_auth_key_updated() final;
+  void on_tmp_auth_key_updated() final;
+  void on_server_salt_updated() final;
+  void on_server_time_difference_updated() final;
 
-  void on_session_created(uint64 unique_id, uint64 first_id) override;
-  void on_session_failed(Status status) override;
+  void on_session_created(uint64 unique_id, uint64 first_id) final;
+  void on_session_failed(Status status) final;
 
-  void on_container_sent(uint64 container_id, vector<uint64> msg_ids) override;
+  void on_container_sent(uint64 container_id, vector<uint64> msg_ids) final;
 
-  void on_message_ack(uint64 id) override;
-  Status on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) override;
-  void on_message_result_error(uint64 id, int error_code, BufferSlice message) override;
-  void on_message_failed(uint64 id, Status status) override;
+  Status on_update(BufferSlice packet) final;
 
-  void on_message_info(uint64 id, int32 state, uint64 answer_id, int32 answer_size) override;
+  void on_message_ack(uint64 id) final;
+  Status on_message_result_ok(uint64 id, BufferSlice packet, size_t original_size) final;
+  void on_message_result_error(uint64 id, int error_code, string message) final;
+  void on_message_failed(uint64 id, Status status) final;
 
-  Status on_destroy_auth_key() override;
+  void on_message_info(uint64 id, int32 state, uint64 answer_id, int32 answer_size) final;
+
+  Status on_destroy_auth_key() final;
 
   void flush_pending_invoke_after_queries();
   bool has_queries() const;
@@ -248,15 +249,15 @@ class Session final
   bool need_send_check_main_key() const;
   bool connection_send_check_main_key(ConnectionInfo *info);
 
-  void on_result(NetQueryPtr query) override;
+  void on_result(NetQueryPtr query) final;
 
   void on_bind_result(NetQueryPtr query);
   void on_check_key_result(NetQueryPtr query);
 
-  void start_up() override;
-  void loop() override;
-  void hangup() override;
-  void raw_event(const Event::Raw &event) override;
+  void start_up() final;
+  void loop() final;
+  void hangup() final;
+  void raw_event(const Event::Raw &event) final;
 
   friend StringBuilder &operator<<(StringBuilder &sb, Mode mode) {
     return sb << (mode == Mode::Http ? "Http" : "Tcp");

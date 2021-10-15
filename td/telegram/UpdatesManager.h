@@ -33,28 +33,28 @@ extern int VERBOSITY_NAME(get_difference);
 
 class Td;
 
-class dummyUpdate : public telegram_api::Update {
+class dummyUpdate final : public telegram_api::Update {
  public:
   static constexpr int32 ID = 1234567891;
-  int32 get_id() const override {
+  int32 get_id() const final {
     return ID;
   }
 
-  void store(TlStorerUnsafe &s) const override {
+  void store(TlStorerUnsafe &s) const final {
     UNREACHABLE();
   }
 
-  void store(TlStorerCalcLength &s) const override {
+  void store(TlStorerCalcLength &s) const final {
     UNREACHABLE();
   }
 
-  void store(TlStorerToString &s, const char *field_name) const override {
+  void store(TlStorerToString &s, const char *field_name) const final {
     s.store_class_begin(field_name, "dummyUpdate");
     s.store_class_end();
   }
 };
 
-class updateSentMessage : public telegram_api::Update {
+class updateSentMessage final : public telegram_api::Update {
  public:
   int64 random_id_;
   MessageId message_id_;
@@ -66,19 +66,19 @@ class updateSentMessage : public telegram_api::Update {
   }
 
   static constexpr int32 ID = 1234567890;
-  int32 get_id() const override {
+  int32 get_id() const final {
     return ID;
   }
 
-  void store(TlStorerUnsafe &s) const override {
+  void store(TlStorerUnsafe &s) const final {
     UNREACHABLE();
   }
 
-  void store(TlStorerCalcLength &s) const override {
+  void store(TlStorerCalcLength &s) const final {
     UNREACHABLE();
   }
 
-  void store(TlStorerToString &s, const char *field_name) const override {
+  void store(TlStorerToString &s, const char *field_name) const final {
     s.store_class_begin(field_name, "updateSentMessage");
     s.store_field("random_id", random_id_);
     s.store_field("message_id", message_id_.get());
@@ -88,14 +88,14 @@ class updateSentMessage : public telegram_api::Update {
   }
 };
 
-class UpdatesManager : public Actor {
+class UpdatesManager final : public Actor {
  public:
   UpdatesManager(Td *td, ActorShared<> parent);
 
   void on_get_updates(tl_object_ptr<telegram_api::Updates> &&updates_ptr, Promise<Unit> &&promise);
 
   void add_pending_pts_update(tl_object_ptr<telegram_api::Update> &&update, int32 new_pts, int32 pts_count,
-                              Promise<Unit> &&promise, const char *source);
+                              double receive_time, Promise<Unit> &&promise, const char *source);
 
   static std::unordered_set<int64> get_sent_messages_random_ids(const telegram_api::Updates *updates_ptr);
 
@@ -103,6 +103,8 @@ class UpdatesManager : public Actor {
       const telegram_api::Updates *updates_ptr);
 
   static vector<InputGroupCallId> get_update_new_group_call_ids(const telegram_api::Updates *updates_ptr);
+
+  static string extract_join_group_call_presentation_params(telegram_api::Updates *updates_ptr);
 
   static vector<DialogId> get_update_notify_settings_dialog_ids(const telegram_api::Updates *updates_ptr);
 
@@ -120,9 +122,13 @@ class UpdatesManager : public Actor {
     return running_get_difference_;
   }
 
+  void timeout_expired() final;
+
  private:
   static constexpr int32 FORCED_GET_DIFFERENCE_PTS_DIFF = 100000;
+  static constexpr int32 GAP_TIMEOUT_UPDATE_COUNT = 20;
   static const double MAX_UNFILLED_GAP_TIME;
+  static const double MAX_PTS_SAVE_DELAY;
   static constexpr bool DROP_PTS_UPDATES = false;
 
   friend class OnUpdate;
@@ -132,10 +138,16 @@ class UpdatesManager : public Actor {
     tl_object_ptr<telegram_api::Update> update;
     int32 pts;
     int32 pts_count;
+    double receive_time;
     Promise<Unit> promise;
 
-    PendingPtsUpdate(tl_object_ptr<telegram_api::Update> &&update, int32 pts, int32 pts_count, Promise<Unit> &&promise)
-        : update(std::move(update)), pts(pts), pts_count(pts_count), promise(std::move(promise)) {
+    PendingPtsUpdate(tl_object_ptr<telegram_api::Update> &&update, int32 pts, int32 pts_count, double receive_time,
+                     Promise<Unit> &&promise)
+        : update(std::move(update))
+        , pts(pts)
+        , pts_count(pts_count)
+        , receive_time(receive_time)
+        , promise(std::move(promise)) {
     }
   };
 
@@ -144,17 +156,24 @@ class UpdatesManager : public Actor {
     int32 seq_begin;
     int32 seq_end;
     int32 date;
+    double receive_time;
     vector<tl_object_ptr<telegram_api::Update>> updates;
     Promise<Unit> promise;
 
-    PendingSeqUpdates(int32 seq_begin, int32 seq_end, int32 date, vector<tl_object_ptr<telegram_api::Update>> &&updates,
-                      Promise<Unit> &&promise)
-        : seq_begin(seq_begin), seq_end(seq_end), date(date), updates(std::move(updates)), promise(std::move(promise)) {
+    PendingSeqUpdates(int32 seq_begin, int32 seq_end, int32 date, double receive_time,
+                      vector<tl_object_ptr<telegram_api::Update>> &&updates, Promise<Unit> &&promise)
+        : seq_begin(seq_begin)
+        , seq_end(seq_end)
+        , date(date)
+        , receive_time(receive_time)
+        , updates(std::move(updates))
+        , promise(std::move(promise)) {
     }
   };
 
   class PendingQtsUpdate {
    public:
+    double receive_time;
     tl_object_ptr<telegram_api::Update> update;
     vector<Promise<Unit>> promises;
   };
@@ -167,6 +186,11 @@ class UpdatesManager : public Actor {
   int32 date_ = 0;
   int32 seq_ = 0;
   string date_source_ = "nowhere";
+
+  double last_pts_save_time_ = 0;
+  double last_qts_save_time_ = 0;
+  int32 pending_pts_ = 0;
+  int32 pending_qts_ = 0;
 
   int32 short_update_date_ = 0;
 
@@ -198,7 +222,7 @@ class UpdatesManager : public Actor {
   int32 min_postponed_update_pts_ = 0;
   int32 min_postponed_update_qts_ = 0;
 
-  void tear_down() override;
+  void tear_down() final;
 
   int32 get_pts() const {
     return pts_manager_.mem_pts();
@@ -241,13 +265,15 @@ class UpdatesManager : public Actor {
   void add_pending_qts_update(tl_object_ptr<telegram_api::Update> &&update, int32 qts, Promise<Unit> &&promise);
 
   void on_pending_updates(vector<tl_object_ptr<telegram_api::Update>> &&updates, int32 seq_begin, int32 seq_end,
-                          int32 date, Promise<Unit> &&promise, const char *source);
+                          int32 date, double receive_time, Promise<Unit> &&promise, const char *source);
+
+  void on_pending_updates_processed(Result<Unit> &&result, Promise<Unit> &&promise);
 
   void process_updates(vector<tl_object_ptr<telegram_api::Update>> &&updates, bool force_apply,
                        Promise<Unit> &&promise);
 
   void postpone_pts_update(tl_object_ptr<telegram_api::Update> &&update, int32 pts, int32 pts_count,
-                           Promise<Unit> &&promise);
+                           double receive_time, Promise<Unit> &&promise);
 
   void process_pts_update(tl_object_ptr<telegram_api::Update> &&update);
 
@@ -256,13 +282,17 @@ class UpdatesManager : public Actor {
 
   void process_qts_update(tl_object_ptr<telegram_api::Update> &&update_ptr, int32 qts, Promise<Unit> &&promise);
 
+  void process_all_pending_pts_updates();
+
+  void drop_all_pending_pts_updates();
+
+  void process_postponed_pts_updates();
+
   void process_pending_pts_updates();
 
   void process_pending_seq_updates();
 
   void process_pending_qts_updates();
-
-  void drop_pending_pts_updates();
 
   static void fill_pts_gap(void *td);
 
@@ -290,8 +320,6 @@ class UpdatesManager : public Actor {
 
   void after_get_difference();
 
-  int32 get_min_pending_pts() const;
-
   static bool have_update_pts_changed(const vector<tl_object_ptr<telegram_api::Update>> &updates);
 
   static bool check_pts_update_dialog_id(DialogId dialog_id);
@@ -307,6 +335,8 @@ class UpdatesManager : public Actor {
   static int32 get_update_qts(const telegram_api::Update *update);
 
   static const vector<tl_object_ptr<telegram_api::Update>> *get_updates(const telegram_api::Updates *updates_ptr);
+
+  static vector<tl_object_ptr<telegram_api::Update>> *get_updates(telegram_api::Updates *updates_ptr);
 
   bool is_acceptable_user(UserId user_id) const;
 
@@ -357,6 +387,7 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateUserPhoto> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updatePeerBlocked> update, Promise<Unit> &&promise);
+  void on_update(tl_object_ptr<telegram_api::updateBotCommands> update, Promise<Unit> &&promise);
 
   void on_update(tl_object_ptr<telegram_api::updateChatParticipants> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateChatParticipantAdd> update, Promise<Unit> &&promise);
@@ -434,6 +465,7 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updatePhoneCall> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updatePhoneCallSignalingData> update, Promise<Unit> &&promise);
 
+  void on_update(tl_object_ptr<telegram_api::updateGroupCallConnection> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateGroupCall> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateGroupCallParticipants> update, Promise<Unit> &&promise);
 
@@ -456,9 +488,9 @@ class UpdatesManager : public Actor {
   void on_update(tl_object_ptr<telegram_api::updateChatParticipant> update, Promise<Unit> &&promise);
   void on_update(tl_object_ptr<telegram_api::updateChannelParticipant> update, Promise<Unit> &&promise);
 
-  // unsupported updates
-
   void on_update(tl_object_ptr<telegram_api::updateTheme> update, Promise<Unit> &&promise);
+
+  // unsupported updates
 };
 
 }  // namespace td

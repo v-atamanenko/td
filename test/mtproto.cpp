@@ -11,6 +11,7 @@
 #include "td/telegram/NotificationManager.h"
 
 #include "td/mtproto/AuthData.h"
+#include "td/mtproto/DhCallback.h"
 #include "td/mtproto/DhHandshake.h"
 #include "td/mtproto/Handshake.h"
 #include "td/mtproto/HandshakeActor.h"
@@ -32,6 +33,7 @@
 
 #include "td/utils/base64.h"
 #include "td/utils/common.h"
+#include "td/utils/crypto.h"
 #include "td/utils/logging.h"
 #include "td/utils/port/Clocks.h"
 #include "td/utils/port/IPAddress.h"
@@ -42,8 +44,6 @@
 #include "td/utils/Status.h"
 #include "td/utils/tests.h"
 #include "td/utils/Time.h"
-
-REGISTER_TESTS(mtproto);
 
 using namespace td;
 
@@ -202,7 +202,7 @@ TEST(Mtproto, encrypted_config) {
   auto config = decode_config(data).move_as_ok();
 }
 
-class TestPingActor : public Actor {
+class TestPingActor final : public Actor {
  public:
   TestPingActor(IPAddress ip_address, Status *result) : ip_address_(ip_address), result_(result) {
   }
@@ -213,7 +213,7 @@ class TestPingActor : public Actor {
   Status *result_;
   bool is_inited_ = false;
 
-  void start_up() override {
+  void start_up() final {
     auto r_socket = SocketFd::open(ip_address_);
     if (r_socket.is_error()) {
       LOG(ERROR) << "Failed to open socket: " << r_socket.error();
@@ -231,14 +231,14 @@ class TestPingActor : public Actor {
     set_timeout_in(10);
     yield();
   }
-  void tear_down() override {
+  void tear_down() final {
     if (is_inited_) {
       Scheduler::unsubscribe_before_close(ping_connection_->get_poll_info().get_pollable_fd_ref());
     }
     Scheduler::instance()->finish();
   }
 
-  void loop() override {
+  void loop() final {
     auto status = ping_connection_->flush();
     if (status.is_error()) {
       *result_ = std::move(status);
@@ -250,7 +250,7 @@ class TestPingActor : public Actor {
     }
   }
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     *result_ = Status::Error("Timeout expired");
     stop();
   }
@@ -270,7 +270,7 @@ static int32 get_default_dc_id() {
   return 10002;
 }
 
-class Mtproto_ping : public Test {
+class Mtproto_ping final : public Test {
  public:
   using Test::Test;
   bool step() final {
@@ -299,20 +299,20 @@ class Mtproto_ping : public Test {
 };
 RegisterTest<Mtproto_ping> mtproto_ping("Mtproto_ping");
 
-class HandshakeContext : public mtproto::AuthKeyHandshakeContext {
+class HandshakeContext final : public mtproto::AuthKeyHandshakeContext {
  public:
-  DhCallback *get_dh_callback() override {
+  mtproto::DhCallback *get_dh_callback() final {
     return nullptr;
   }
-  PublicRsaKeyInterface *get_public_rsa_key_interface() override {
+  mtproto::PublicRsaKeyInterface *get_public_rsa_key_interface() final {
     return &public_rsa_key;
   }
 
  private:
-  PublicRsaKeyShared public_rsa_key{DcId::empty(), false};
+  PublicRsaKeyShared public_rsa_key{DcId::empty(), true};
 };
 
-class HandshakeTestActor : public Actor {
+class HandshakeTestActor final : public Actor {
  public:
   HandshakeTestActor(int32 dc_id, Status *result) : dc_id_(dc_id), result_(result) {
   }
@@ -327,13 +327,13 @@ class HandshakeTestActor : public Actor {
   Status status_;
   bool wait_for_result_ = false;
 
-  void tear_down() override {
+  void tear_down() final {
     if (raw_connection_) {
       raw_connection_->close();
     }
     finish(Status::Error("Interrupted"));
   }
-  void loop() override {
+  void loop() final {
     if (!wait_for_raw_connection_ && !raw_connection_) {
       auto ip_address = get_default_ip_address();
       auto r_socket = SocketFd::open(ip_address);
@@ -410,7 +410,7 @@ class HandshakeTestActor : public Actor {
   }
 };
 
-class Mtproto_handshake : public Test {
+class Mtproto_handshake final : public Test {
  public:
   using Test::Test;
   bool step() final {
@@ -439,21 +439,21 @@ class Mtproto_handshake : public Test {
 };
 RegisterTest<Mtproto_handshake> mtproto_handshake("Mtproto_handshake");
 
-class Socks5TestActor : public Actor {
+class Socks5TestActor final : public Actor {
  public:
-  void start_up() override {
+  void start_up() final {
     auto promise = PromiseCreator::lambda([actor_id = actor_id(this)](Result<SocketFd> res) {
       send_closure(actor_id, &Socks5TestActor::on_result, std::move(res), false);
     });
 
-    class Callback : public TransparentProxy::Callback {
+    class Callback final : public TransparentProxy::Callback {
      public:
       explicit Callback(Promise<SocketFd> promise) : promise_(std::move(promise)) {
       }
-      void set_result(Result<SocketFd> result) override {
+      void set_result(Result<SocketFd> result) final {
         promise_.set_result(std::move(result));
       }
-      void on_connected() override {
+      void on_connected() final {
       }
 
      private:
@@ -521,13 +521,13 @@ TEST(Mtproto, notifications) {
     auto push = base64url_decode(pushes[i]).move_as_ok();
     auto decrypted_payload = base64url_decode(decrypted_payloads[i]).move_as_ok();
 
-    auto key_id = DhHandshake::calc_key_id(key);
+    auto key_id = mtproto::DhHandshake::calc_key_id(key);
     ASSERT_EQ(key_id, NotificationManager::get_push_receiver_id(push).ok());
     ASSERT_EQ(decrypted_payload, NotificationManager::decrypt_push(key_id, key, push).ok());
   }
 }
 
-class FastPingTestActor : public Actor {
+class FastPingTestActor final : public Actor {
  public:
   explicit FastPingTestActor(Status *result) : result_(result) {
   }
@@ -539,7 +539,7 @@ class FastPingTestActor : public Actor {
   ActorOwn<> fast_ping_;
   int iteration_{0};
 
-  void start_up() override {
+  void start_up() final {
     // Run handshake to create key and salt
     auto ip_address = get_default_ip_address();
     auto r_socket = SocketFd::open(ip_address);
@@ -594,7 +594,7 @@ class FastPingTestActor : public Actor {
     loop();
   }
 
-  void loop() override {
+  void loop() final {
     if (handshake_ && connection_) {
       LOG(INFO) << "Iteration " << iteration_;
       if (iteration_ == 6) {
@@ -624,12 +624,12 @@ class FastPingTestActor : public Actor {
     }
   }
 
-  void tear_down() override {
+  void tear_down() final {
     Scheduler::instance()->finish();
   }
 };
 
-class Mtproto_FastPing : public Test {
+class Mtproto_FastPing final : public Test {
  public:
   using Test::Test;
   bool step() final {
@@ -676,11 +676,11 @@ TEST(Mtproto, TlsTransport) {
   sched.init(threads_n);
   {
     auto guard = sched.get_main_guard();
-    class RunTest : public Actor {
-      void start_up() override {
-        class Callback : public TransparentProxy::Callback {
+    class RunTest final : public Actor {
+      void start_up() final {
+        class Callback final : public TransparentProxy::Callback {
          public:
-          void set_result(Result<SocketFd> result) override {
+          void set_result(Result<SocketFd> result) final {
             if (result.is_ok()) {
               LOG(ERROR) << "Unexpectedly succeeded to connect to MTProto proxy";
             } else if (result.error().message() != "Response hash mismatch") {
@@ -688,7 +688,7 @@ TEST(Mtproto, TlsTransport) {
             }
             Scheduler::instance()->finish();
           }
-          void on_connected() override {
+          void on_connected() final {
           }
         };
 
@@ -731,11 +731,11 @@ TEST(Mtproto, RSA) {
       "8Ygs/ps8e6ct82jLXbnndC9s8HjEvDvBPH9IPjv5JUlmHMBFZ5vFQIfbpo0u0+1P\n"
       "n6bkEi5o7/ifoyVv2pAZTRwppTz0EuXD8QIDAQAB\n"
       "-----END RSA PUBLIC KEY-----");
-  auto rsa = RSA::from_pem_public_key(pem).move_as_ok();
+  auto rsa = td::mtproto::RSA::from_pem_public_key(pem).move_as_ok();
   ASSERT_EQ(-7596991558377038078, rsa.get_fingerprint());
   ASSERT_EQ(256u, rsa.size());
 
-  string s(255, '\0');
-  string to(256, '\0');
-  ASSERT_EQ(256u, rsa.encrypt(MutableSlice(s).ubegin(), 10, 255, MutableSlice(to).ubegin(), 256));
+  td::string to(256, '\0');
+  rsa.encrypt(pem.substr(0, 256), to);
+  ASSERT_EQ("U2nJEtB2AgpHrm3HB0yhpTQgb0wbesi9Pv/W1v/vULU=", td::base64_encode(td::sha256(to)));
 }

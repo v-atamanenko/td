@@ -6,8 +6,10 @@
 //
 #include "td/telegram/PhoneNumberManager.h"
 
+#include "td/telegram/ConfigManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
+#include "td/telegram/SuggestedAction.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -43,11 +45,13 @@ void PhoneNumberManager::process_send_code_result(uint64 query_id, const T &send
 
 void PhoneNumberManager::set_phone_number(uint64 query_id, string phone_number, Settings settings) {
   if (phone_number.empty()) {
-    return on_query_error(query_id, Status::Error(8, "Phone number can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Phone number can't be empty"));
   }
 
   switch (type_) {
     case Type::ChangePhone:
+      send_closure(G()->config_manager(), &ConfigManager::hide_suggested_action,
+                   SuggestedAction{SuggestedAction::Type::CheckPhoneNumber});
       return process_send_code_result(query_id, send_code_helper_.send_change_phone_code(phone_number, settings));
     case Type::VerifyPhone:
       return process_send_code_result(query_id, send_code_helper_.send_verify_phone_code(phone_number, settings));
@@ -60,10 +64,10 @@ void PhoneNumberManager::set_phone_number(uint64 query_id, string phone_number, 
 void PhoneNumberManager::set_phone_number_and_hash(uint64 query_id, string hash, string phone_number,
                                                    Settings settings) {
   if (phone_number.empty()) {
-    return on_query_error(query_id, Status::Error(8, "Phone number can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Phone number can't be empty"));
   }
   if (hash.empty()) {
-    return on_query_error(query_id, Status::Error(8, "Hash can't be empty"));
+    return on_query_error(query_id, Status::Error(400, "Hash can't be empty"));
   }
 
   switch (type_) {
@@ -79,7 +83,7 @@ void PhoneNumberManager::set_phone_number_and_hash(uint64 query_id, string hash,
 
 void PhoneNumberManager::resend_authentication_code(uint64 query_id) {
   if (state_ != State::WaitCode) {
-    return on_query_error(query_id, Status::Error(8, "resendAuthenticationCode unexpected"));
+    return on_query_error(query_id, Status::Error(400, "resendAuthenticationCode unexpected"));
   }
 
   auto r_resend_code = send_code_helper_.resend_code();
@@ -99,7 +103,7 @@ void PhoneNumberManager::send_new_check_code_query(const T &query) {
 
 void PhoneNumberManager::check_code(uint64 query_id, string code) {
   if (state_ != State::WaitCode) {
-    return on_query_error(query_id, Status::Error(8, "checkAuthenticationCode unexpected"));
+    return on_query_error(query_id, Status::Error(400, "checkAuthenticationCode unexpected"));
   }
 
   on_new_query(query_id);
@@ -121,7 +125,7 @@ void PhoneNumberManager::check_code(uint64 query_id, string code) {
 
 void PhoneNumberManager::on_new_query(uint64 query_id) {
   if (query_id_ != 0) {
-    on_query_error(Status::Error(9, "Another authorization query has started"));
+    on_query_error(Status::Error(400, "Another authorization query has started"));
   }
   net_query_id_ = 0;
   net_query_type_ = NetQueryType::None;

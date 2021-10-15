@@ -11,7 +11,7 @@
 #include "td/utils/CancellationToken.h"
 #include "td/utils/Closure.h"
 #include "td/utils/common.h"
-#include "td/utils/invoke.h"  // for tuple_for_each
+#include "td/utils/invoke.h"
 #include "td/utils/MovableValue.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Status.h"
@@ -56,7 +56,7 @@ class PromiseInterface {
   virtual bool is_cancellable() const {
     return false;
   }
-  virtual bool is_cancelled() const {
+  virtual bool is_canceled() const {
     return false;
   }
 
@@ -69,7 +69,7 @@ class PromiseInterface {
 namespace detail {
 
 template <typename T>
-struct GetArg : public GetArg<decltype(&T::operator())> {};
+struct GetArg final : public GetArg<decltype(&T::operator())> {};
 
 template <class C, class R, class Arg>
 class GetArg<R (C::*)(Arg)> {
@@ -296,11 +296,11 @@ class Promise {
     }
     return promise_->is_cancellable();
   }
-  bool is_cancelled() const {
+  bool is_canceled() const {
     if (!promise_) {
       return false;
     }
-    return promise_->is_cancelled();
+    return promise_->is_canceled();
   }
   unique_ptr<PromiseInterface<T>> release() {
     return std::move(promise_);
@@ -368,13 +368,13 @@ Promise<T> &Promise<T>::operator=(SafePromise<T> &&other) {
 
 namespace detail {
 
-class EventPromise : public PromiseInterface<Unit> {
+class EventPromise final : public PromiseInterface<Unit> {
  public:
-  void set_value(Unit &&) override {
+  void set_value(Unit &&) final {
     ok_.try_emit();
     fail_.clear();
   }
-  void set_error(Status &&) override {
+  void set_error(Status &&) final {
     do_set_error();
   }
 
@@ -382,7 +382,7 @@ class EventPromise : public PromiseInterface<Unit> {
   EventPromise &operator=(const EventPromise &other) = delete;
   EventPromise(EventPromise &&other) = delete;
   EventPromise &operator=(EventPromise &&other) = delete;
-  ~EventPromise() override {
+  ~EventPromise() final {
     do_set_error();
   }
 
@@ -407,7 +407,7 @@ class EventPromise : public PromiseInterface<Unit> {
 };
 
 template <class PromiseT>
-class CancellablePromise : public PromiseT {
+class CancellablePromise final : public PromiseT {
  public:
   template <class... ArgsT>
   CancellablePromise(CancellationToken cancellation_token, ArgsT &&... args)
@@ -416,7 +416,7 @@ class CancellablePromise : public PromiseT {
   virtual bool is_cancellable() const {
     return true;
   }
-  virtual bool is_cancelled() const {
+  virtual bool is_canceled() const {
     return static_cast<bool>(cancellation_token_);
   }
 
@@ -425,14 +425,14 @@ class CancellablePromise : public PromiseT {
 };
 
 template <class... ArgsT>
-class JoinPromise : public PromiseInterface<Unit> {
+class JoinPromise final : public PromiseInterface<Unit> {
  public:
   explicit JoinPromise(ArgsT &&... arg) : promises_(std::forward<ArgsT>(arg)...) {
   }
-  void set_value(Unit &&) override {
+  void set_value(Unit &&) final {
     tuple_for_each(promises_, [](auto &promise) { promise.set_value(Unit()); });
   }
-  void set_error(Status &&error) override {
+  void set_error(Status &&error) final {
     tuple_for_each(promises_, [&error](auto &promise) { promise.set_error(error.clone()); });
   }
 
@@ -489,12 +489,12 @@ class PromiseActor final : public PromiseInterface<T> {
   PromiseActor &operator=(const PromiseActor &other) = delete;
   PromiseActor(PromiseActor &&) = default;
   PromiseActor &operator=(PromiseActor &&) = default;
-  ~PromiseActor() override {
+  ~PromiseActor() final {
     close();
   }
 
-  void set_value(T &&value) override;
-  void set_error(Status &&error) override;
+  void set_value(T &&value) final;
+  void set_error(Status &&error) final;
 
   void close() {
     future_id_.reset();
@@ -552,7 +552,7 @@ class FutureActor final : public Actor {
   FutureActor(FutureActor &&other) = default;
   FutureActor &operator=(FutureActor &&other) = default;
 
-  ~FutureActor() override = default;
+  ~FutureActor() final = default;
 
   bool is_ok() const {
     return is_ready() && result_.is_ok();
@@ -620,11 +620,11 @@ class FutureActor final : public Actor {
     event_.try_emit_later();
   }
 
-  void hangup() override {
+  void hangup() final {
     set_error(Status::Error<HANGUP_ERROR_CODE>());
   }
 
-  void start_up() override {
+  void start_up() final {
     // empty
   }
 

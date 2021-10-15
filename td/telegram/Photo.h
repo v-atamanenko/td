@@ -7,16 +7,16 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/PhotoSizeSource.h"
-#include "td/telegram/SecretInputMedia.h"
-#include "td/telegram/UserId.h"
-
 #include "td/telegram/secret_api.h"
+#include "td/telegram/SecretInputMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -40,7 +40,7 @@ struct DialogPhoto {
   bool has_animation = false;
 };
 
-struct ProfilePhoto : public DialogPhoto {
+struct ProfilePhoto final : public DialogPhoto {
   int64 id = 0;
 };
 
@@ -52,7 +52,7 @@ struct PhotoSize {
   vector<int32> progressive_sizes;
 };
 
-struct AnimationSize : public PhotoSize {
+struct AnimationSize final : public PhotoSize {
   double main_frame_timestamp = 0.0;
 };
 
@@ -96,7 +96,7 @@ DialogPhoto get_dialog_photo(FileManager *file_manager, DialogId dialog_id, int6
 tl_object_ptr<td_api::chatPhotoInfo> get_chat_photo_info_object(FileManager *file_manager,
                                                                 const DialogPhoto *dialog_photo);
 
-DialogPhoto as_fake_dialog_photo(const Photo &photo);
+DialogPhoto as_fake_dialog_photo(const Photo &photo, DialogId dialog_id);
 
 ProfilePhoto as_profile_photo(FileManager *file_manager, UserId user_id, int64 user_access_hash, const Photo &photo);
 
@@ -137,7 +137,7 @@ StringBuilder &operator<<(StringBuilder &string_builder, const AnimationSize &an
 
 Photo get_photo(FileManager *file_manager, tl_object_ptr<telegram_api::Photo> &&photo, DialogId owner_dialog_id);
 Photo get_photo(FileManager *file_manager, tl_object_ptr<telegram_api::photo> &&photo, DialogId owner_dialog_id);
-Photo get_encrypted_file_photo(FileManager *file_manager, tl_object_ptr<telegram_api::encryptedFile> &&file,
+Photo get_encrypted_file_photo(FileManager *file_manager, unique_ptr<EncryptedFile> &&file,
                                tl_object_ptr<secret_api::decryptedMessageMediaPhoto> &&photo, DialogId owner_dialog_id);
 Photo get_web_document_photo(FileManager *file_manager, tl_object_ptr<telegram_api::WebDocument> web_document,
                              DialogId owner_dialog_id);

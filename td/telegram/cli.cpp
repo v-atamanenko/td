@@ -4,18 +4,17 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/actor/actor.h"
-#include "td/actor/ConcurrentScheduler.h"
-
-#include "memprof/memprof.h"
+#include "td/telegram/Client.h"
+#include "td/telegram/ClientActor.h"
+#include "td/telegram/td_api_json.h"
 
 #include "td/net/HttpQuery.h"
 #include "td/net/HttpReader.h"
 
-#include "td/telegram/ClientActor.h"
-#include "td/telegram/Client.h"
-#include "td/telegram/Td.h"  // for VERBOSITY_NAME(td_requests)
-#include "td/telegram/td_api_json.h"
+#include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
+
+#include "memprof/memprof.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
@@ -131,23 +130,11 @@ static void reactivate_readline() {
 }
 
 static char *command_generator(const char *text, int state) {
-  static const vector<CSlice> commands{"GetChats",
-                                       "GetHistory",
-                                       "SetVerbosity",
-                                       "SendVideo",
-                                       "SearchDocument",
-                                       "GetChatMember",
-                                       "GetSupergroupAdministrators",
-                                       "GetSupergroupBanned",
-                                       "GetSupergroupMembers",
-                                       "GetFile",
-                                       "DownloadFile",
-                                       "CancelDownloadFile",
-                                       "ImportContacts",
-                                       "RemoveContacts",
-                                       "DumpNetQueries",
-                                       "CreateSecretChat",
-                                       "CreateNewSecretChat"};
+  static const vector<CSlice> commands{"GetHistory",          "SetVerbosity",         "SendVideo",
+                                       "SearchDocument",      "GetChatMember",        "GetSupergroupAdministrators",
+                                       "GetSupergroupBanned", "GetSupergroupMembers", "GetFile",
+                                       "DownloadFile",        "CancelDownloadFile",   "ImportContacts",
+                                       "RemoveContacts",      "CreateSecretChat",     "CreateNewSecretChat"};
   static size_t cmd_i;
   if (state == 0) {
     cmd_i = 0;
@@ -191,7 +178,7 @@ static char **tg_cli_completion(const char *text, int start, int end) {
 }
 #endif
 
-class CliLog : public LogInterface {
+class CliLog final : public LogInterface {
   void do_append(int log_level, CSlice slice) final {
 #ifdef USE_READLINE
     deactivate_readline();
@@ -237,7 +224,7 @@ class CliClient final : public Actor {
   }
 
  private:
-  void start_up() override {
+  void start_up() final {
     yield();
   }
 
@@ -250,8 +237,8 @@ class CliClient final : public Actor {
     string username;
   };
 
-  std::unordered_map<int32, User> users_;
-  std::unordered_map<string, int32> username_to_user_id_;
+  std::unordered_map<int64, User> users_;
+  std::unordered_map<string, int64> username_to_user_id_;
 
   void register_user(const td_api::user &user) {
     User &new_user = users_[user.id_];
@@ -261,7 +248,7 @@ class CliClient final : public Actor {
     username_to_user_id_[to_lower(new_user.username)] = user.id_;
   }
 
-  void print_user(Logger &log, int32 user_id, bool full = false) {
+  void print_user(Logger &log, int64 user_id, bool full = false) {
     const User *user = &users_[user_id];
     log << user->first_name << " " << user->last_name << " #" << user_id;
     if (!user->username.empty()) {
@@ -280,7 +267,7 @@ class CliClient final : public Actor {
     }
   }
 
-  std::unordered_map<string, int32> username_to_supergroup_id_;
+  std::unordered_map<string, int64> username_to_supergroup_id_;
   void register_supergroup(const td_api::supergroup &supergroup) {
     if (!supergroup.username_.empty()) {
       username_to_supergroup_id_[to_lower(supergroup.username_)] = supergroup.id_;
@@ -289,7 +276,7 @@ class CliClient final : public Actor {
 
   void update_option(const td_api::updateOption &option) {
     if (option.name_ == "my_id" && option.value_->get_id() == td_api::optionValueInteger::ID) {
-      my_id_ = static_cast<int32>(static_cast<const td_api::optionValueInteger *>(option.value_.get())->value_);
+      my_id_ = static_cast<const td_api::optionValueInteger *>(option.value_.get())->value_;
       LOG(INFO) << "Set my user identifier to " << my_id_;
     }
   }
@@ -433,7 +420,7 @@ class CliClient final : public Actor {
   static char get_delimiter(Slice str) {
     std::unordered_set<char> chars;
     for (auto c : trim(str)) {
-      if (!is_alnum(c) && c != '-') {
+      if (!is_alnum(c) && c != '-' && c != '.' && c != '/') {
         chars.insert(c);
       }
     }
@@ -531,7 +518,7 @@ class CliClient final : public Actor {
     return to_integer<int32>(trim(str));
   }
 
-  int32 as_user_id(Slice str) const {
+  int64 as_user_id(Slice str) const {
     str = trim(str);
     if (str == "me") {
       return my_id_;
@@ -547,23 +534,23 @@ class CliClient final : public Actor {
       LOG(ERROR) << "Can't find user " << str;
       return 0;
     }
-    return to_integer<int32>(str);
+    return to_integer<int64>(str);
   }
 
-  vector<int32> as_user_ids(Slice user_ids) const {
+  vector<int64> as_user_ids(Slice user_ids) const {
     return transform(full_split(user_ids, get_delimiter(user_ids)), [this](Slice str) { return as_user_id(str); });
   }
 
-  static int32 as_basic_group_id(Slice str) {
+  static int64 as_basic_group_id(Slice str) {
     str = trim(str);
-    auto result = to_integer<int32>(str);
+    auto result = to_integer<int64>(str);
     if (result < 0) {
       return -result;
     }
     return result;
   }
 
-  int32 as_supergroup_id(Slice str) const {
+  int64 as_supergroup_id(Slice str) const {
     str = trim(str);
     if (str[0] == '@') {
       str.remove_prefix(1);
@@ -578,9 +565,9 @@ class CliClient final : public Actor {
     auto result = to_integer<int64>(str);
     int64 shift = static_cast<int64>(-1000000000000ll);
     if (result <= shift) {
-      return static_cast<int32>(shift - result);
+      return shift - result;
     }
-    return static_cast<int32>(result);
+    return result;
   }
 
   static int32 as_secret_chat_id(Slice str) {
@@ -619,8 +606,8 @@ class CliClient final : public Actor {
     if ((str.size() >= 20 && is_base64url(str)) || begins_with(str, "http")) {
       return as_remote_file(str);
     }
-    auto r_id = to_integer_safe<int32>(str);
-    if (r_id.is_ok()) {
+    auto r_file_id = to_integer_safe<int32>(str);
+    if (r_file_id.is_ok()) {
       return as_input_file_id(str);
     }
     if (str.find(';') < str.size()) {
@@ -734,7 +721,7 @@ class CliClient final : public Actor {
       }
     }
 
-    if (id > 0 && combined_log.get_first_verbosity_level() < VERBOSITY_NAME(td_requests)) {
+    if (id > 0 && combined_log.get_first_verbosity_level() < get_log_tag_verbosity_level("td_requests")) {
       LOG(ERROR) << "Receive result [" << generation << "][id=" << id << "] " << result_str;
     }
 
@@ -834,7 +821,7 @@ class CliClient final : public Actor {
         if (message != nullptr && message->content_->get_id() == td_api::messageText::ID) {
           auto chat_id = message->chat_id_;
           auto text = static_cast<const td_api::messageText *>(message->content_.get())->text_->text_;
-          if (text == "/start" && use_test_dc_) {
+          if (text == "/start" && !message->is_outgoing_ && use_test_dc_) {
             on_cmd(PSTRING() << "sm " << chat_id << " Hi!");
           }
         }
@@ -853,7 +840,7 @@ class CliClient final : public Actor {
   }
 
   void on_error(uint64 generation, uint64 id, td_api::object_ptr<td_api::error> error) {
-    if (id > 0 && combined_log.get_first_verbosity_level() < VERBOSITY_NAME(td_requests)) {
+    if (id > 0 && combined_log.get_first_verbosity_level() < get_log_tag_verbosity_level("td_requests")) {
       LOG(ERROR) << "Receive error [" << generation << "][id=" << id << "] " << to_string(error);
     }
   }
@@ -916,21 +903,21 @@ class CliClient final : public Actor {
     }
 
     LOG(WARNING) << "Creating new TD " << name << " with generation " << generation_ + 1;
-    class TdCallbackImpl : public TdCallback {
+    class TdCallbackImpl final : public TdCallback {
      public:
       TdCallbackImpl(CliClient *client, uint64 generation) : client_(client), generation_(generation) {
       }
-      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) override {
+      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) final {
         client_->on_result(generation_, id, std::move(result));
       }
-      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) override {
+      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) final {
         client_->on_error(generation_, id, std::move(error));
       }
       TdCallbackImpl(const TdCallbackImpl &) = delete;
       TdCallbackImpl &operator=(const TdCallbackImpl &) = delete;
       TdCallbackImpl(TdCallbackImpl &&) = delete;
       TdCallbackImpl &operator=(TdCallbackImpl &&) = delete;
-      ~TdCallbackImpl() override {
+      ~TdCallbackImpl() final {
         client_->on_closed(generation_);
       }
 
@@ -945,7 +932,7 @@ class CliClient final : public Actor {
     td_client_ = create_actor<ClientActor>(name, make_unique<TdCallbackImpl>(this, ++generation_), std::move(options));
 
     if (get_chat_list_) {
-      send_request(td_api::make_object<td_api::getChats>(nullptr, std::numeric_limits<int64>::max(), 0, 100));
+      send_request(td_api::make_object<td_api::getChats>(nullptr, 10000));
     }
     if (disable_network_) {
       send_request(td_api::make_object<td_api::setNetworkType>(td_api::make_object<td_api::networkTypeNone>()));
@@ -1331,6 +1318,12 @@ class CliClient final : public Actor {
     if (action == "uvn" || action == "upload_video_note") {
       return td_api::make_object<td_api::chatActionUploadingVideoNote>(50);
     }
+    if (action == "cs" || action == "choose_sticker") {
+      return td_api::make_object<td_api::chatActionChoosingSticker>();
+    }
+    if (begins_with(action, "wa")) {
+      return td_api::make_object<td_api::chatActionWatchingAnimations>(action.substr(2).str());
+    }
     return td_api::make_object<td_api::chatActionTyping>();
   }
 
@@ -1387,6 +1380,9 @@ class CliClient final : public Actor {
   td_api::object_ptr<td_api::SuggestedAction> as_suggested_action(Slice action) const {
     if (action == "unarchive") {
       return td_api::make_object<td_api::suggestedActionEnableArchiveAndMuteNewChats>();
+    }
+    if (action == "pass") {
+      return td_api::make_object<td_api::suggestedActionCheckPassword>();
     }
     if (action == "number") {
       return td_api::make_object<td_api::suggestedActionCheckPhoneNumber>();
@@ -1535,15 +1531,28 @@ class CliClient final : public Actor {
     return td_api::make_object<td_api::backgroundFillGradient>(top_color, bottom_color, Random::fast(0, 7) * 45);
   }
 
+  static td_api::object_ptr<td_api::BackgroundFill> get_background_fill(vector<int32> colors) {
+    return td_api::make_object<td_api::backgroundFillFreeformGradient>(std::move(colors));
+  }
+
   static td_api::object_ptr<td_api::BackgroundType> get_solid_pattern_background(int32 color, int32 intensity,
                                                                                  bool is_moving) {
-    return get_gradient_pattern_background(color, color, intensity, is_moving);
+    return get_gradient_pattern_background(color, color, intensity, false, is_moving);
   }
 
   static td_api::object_ptr<td_api::BackgroundType> get_gradient_pattern_background(int32 top_color, int32 bottom_color,
-                                                                                    int32 intensity, bool is_moving) {
+                                                                                    int32 intensity, bool is_inverted,
+                                                                                    bool is_moving) {
     return td_api::make_object<td_api::backgroundTypePattern>(get_background_fill(top_color, bottom_color), intensity,
-                                                              is_moving);
+                                                              is_inverted, is_moving);
+  }
+
+  static td_api::object_ptr<td_api::BackgroundType> get_freeform_gradient_pattern_background(vector<int32> colors,
+                                                                                             int32 intensity,
+                                                                                             bool is_inverted,
+                                                                                             bool is_moving) {
+    return td_api::make_object<td_api::backgroundTypePattern>(get_background_fill(std::move(colors)), intensity,
+                                                              is_inverted, is_moving);
   }
 
   static td_api::object_ptr<td_api::BackgroundType> get_solid_background(int32 color) {
@@ -1554,12 +1563,16 @@ class CliClient final : public Actor {
     return td_api::make_object<td_api::backgroundTypeFill>(get_background_fill(top_color, bottom_color));
   }
 
+  static td_api::object_ptr<td_api::BackgroundType> get_freeform_gradient_background(vector<int32> colors) {
+    return td_api::make_object<td_api::backgroundTypeFill>(get_background_fill(std::move(colors)));
+  }
+
   static td_api::object_ptr<td_api::Object> execute(td_api::object_ptr<td_api::Function> f) {
-    if (combined_log.get_first_verbosity_level() < VERBOSITY_NAME(td_requests)) {
+    if (combined_log.get_first_verbosity_level() < get_log_tag_verbosity_level("td_requests")) {
       LOG(ERROR) << "Execute request: " << to_string(f);
     }
     auto res = ClientActor::execute(std::move(f));
-    if (combined_log.get_first_verbosity_level() < VERBOSITY_NAME(td_requests)) {
+    if (combined_log.get_first_verbosity_level() < get_log_tag_verbosity_level("td_requests")) {
       LOG(ERROR) << "Execute response: " << to_string(res);
     }
     return res;
@@ -1575,6 +1588,15 @@ class CliClient final : public Actor {
       LOG(ERROR) << "Failed to send: " << to_string(f);
       return 0;
     }
+  }
+
+  static int32 get_log_tag_verbosity_level(string name) {
+    auto level = ClientActor::execute(td_api::make_object<td_api::getLogTagVerbosityLevel>(name));
+    if (level->get_id() == td_api::error::ID) {
+      return -1;
+    }
+    CHECK(level->get_id() == td_api::logVerbosityLevel::ID);
+    return static_cast<const td_api::logVerbosityLevel *>(level.get())->verbosity_level_;
   }
 
   void send_message(const string &chat_id, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
@@ -1637,8 +1659,15 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getCurrentState>());
     } else if (op == "rapr") {
       send_request(td_api::make_object<td_api::requestAuthenticationPasswordRecovery>());
+    } else if (op == "caprc") {
+      string recovery_code = args;
+      send_request(td_api::make_object<td_api::checkAuthenticationPasswordRecoveryCode>(recovery_code));
     } else if (op == "rap") {
-      send_request(td_api::make_object<td_api::recoverAuthenticationPassword>(args));
+      string recovery_code;
+      string new_password;
+      string new_hint;
+      get_args(args, recovery_code, new_password, new_hint);
+      send_request(td_api::make_object<td_api::recoverAuthenticationPassword>(recovery_code, new_password, new_hint));
     } else if (op == "lo" || op == "LogOut" || op == "logout") {
       send_request(td_api::make_object<td_api::logOut>());
     } else if (op == "destroy") {
@@ -1757,10 +1786,21 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::checkPhoneNumberVerificationCode>(args));
     } else if (op == "rpncc") {
       send_request(td_api::make_object<td_api::resendPhoneNumberVerificationCode>());
-    } else if (op == "rpr" || op == "RequestPasswordRecovery") {
+    } else if (op == "rpr") {
       send_request(td_api::make_object<td_api::requestPasswordRecovery>());
-    } else if (op == "rp" || op == "RecoverPassword") {
-      send_request(td_api::make_object<td_api::recoverPassword>(args));
+    } else if (op == "cprc") {
+      string recovery_code = args;
+      send_request(td_api::make_object<td_api::checkPasswordRecoveryCode>(recovery_code));
+    } else if (op == "rp") {
+      string recovery_code;
+      string new_password;
+      string new_hint;
+      get_args(args, recovery_code, new_password, new_hint);
+      send_request(td_api::make_object<td_api::recoverPassword>(recovery_code, new_password, new_hint));
+    } else if (op == "resetp") {
+      send_request(td_api::make_object<td_api::resetPassword>());
+    } else if (op == "cpr") {
+      send_request(td_api::make_object<td_api::cancelPasswordReset>());
     } else if (op == "gtp" || op == "GetTemporaryPassword") {
       send_request(td_api::make_object<td_api::getTemporaryPasswordState>());
     } else if (op == "ctp" || op == "CreateTemporaryPassword") {
@@ -1930,23 +1970,14 @@ class CliClient final : public Actor {
       op_not_found_count++;
     }
 
-    if (op == "gc" || op == "GetChats" || op == "gca" || begins_with(op, "gc-")) {
-      string limit;
-      string offset_order_string;
-      string offset_chat_id;
-      get_args(args, limit, offset_order_string, offset_chat_id);
-      int64 offset_order;
-      if (offset_order_string.empty()) {
-        offset_order = std::numeric_limits<int64>::max();
-      } else {
-        offset_order = to_integer<int64>(offset_order_string);
-      }
-      send_request(td_api::make_object<td_api::getChats>(as_chat_list(op), offset_order, as_chat_id(offset_chat_id),
-                                                         as_limit(limit, 10000)));
+    if (op == "gc" || op == "gca" || begins_with(op, "gc-")) {
+      send_request(td_api::make_object<td_api::getChats>(as_chat_list(op), as_limit(args, 10000)));
+    } else if (op == "lc" || op == "lca" || begins_with(op, "lc-")) {
+      send_request(td_api::make_object<td_api::loadChats>(as_chat_list(op), as_limit(args, 10000)));
     } else if (op == "gctest") {
-      send_request(td_api::make_object<td_api::getChats>(nullptr, std::numeric_limits<int64>::max(), 0, 1));
-      send_request(td_api::make_object<td_api::getChats>(nullptr, std::numeric_limits<int64>::max(), 0, 10));
-      send_request(td_api::make_object<td_api::getChats>(nullptr, std::numeric_limits<int64>::max(), 0, 5));
+      send_request(td_api::make_object<td_api::getChats>(nullptr, 1));
+      send_request(td_api::make_object<td_api::getChats>(nullptr, 10));
+      send_request(td_api::make_object<td_api::getChats>(nullptr, 5));
     } else if (op == "gcc" || op == "GetCommonChats") {
       string user_id;
       string offset_chat_id;
@@ -2202,16 +2233,25 @@ class CliClient final : public Actor {
       send_get_background_url(get_solid_pattern_background(0, 0, false));
       send_get_background_url(get_solid_pattern_background(0xFFFFFF, 100, true));
       send_get_background_url(get_solid_pattern_background(0xABCDEF, 49, true));
-      send_get_background_url(get_gradient_pattern_background(0, 0, 0, false));
-      send_get_background_url(get_gradient_pattern_background(0xFFFFFF, 0, 100, true));
-      send_get_background_url(get_gradient_pattern_background(0xABCDEF, 0xFEDCBA, 49, true));
-      send_get_background_url(get_gradient_pattern_background(0, 0x1000000, 49, true));
+      send_get_background_url(get_gradient_pattern_background(0, 0, 0, false, false));
+      send_get_background_url(get_gradient_pattern_background(0, 0, 0, true, false));
+      send_get_background_url(get_gradient_pattern_background(0xFFFFFF, 0, 100, false, true));
+      send_get_background_url(get_gradient_pattern_background(0xFFFFFF, 0, 100, true, true));
+      send_get_background_url(get_gradient_pattern_background(0xABCDEF, 0xFEDCBA, 49, false, true));
+      send_get_background_url(get_gradient_pattern_background(0, 0x1000000, 49, false, true));
+      send_get_background_url(get_freeform_gradient_pattern_background({0xABCDEF, 0xFEDCBA}, 49, false, true));
+      send_get_background_url(get_freeform_gradient_pattern_background({0xABCDEF, 0x111111, 0x222222}, 49, true, true));
+      send_get_background_url(
+          get_freeform_gradient_pattern_background({0xABCDEF, 0xFEDCBA, 0x111111, 0x222222}, 49, false, true));
       send_get_background_url(get_solid_background(-1));
       send_get_background_url(get_solid_background(0xABCDEF));
       send_get_background_url(get_solid_background(0x1000000));
       send_get_background_url(get_gradient_background(0xABCDEF, 0xFEDCBA));
       send_get_background_url(get_gradient_background(0, 0));
       send_get_background_url(get_gradient_background(-1, -1));
+      send_get_background_url(get_freeform_gradient_background({0xFEDCBA, 0x222222}));
+      send_get_background_url(get_freeform_gradient_background({0xFEDCBA, 0x111111, 0x222222}));
+      send_get_background_url(get_freeform_gradient_background({0xABCDEF, 0xFEDCBA, 0x111111, 0x222222}));
     } else if (op == "sbg") {
       send_request(td_api::make_object<td_api::searchBackground>(args));
     } else if (op == "sbgd") {
@@ -2227,23 +2267,36 @@ class CliClient final : public Actor {
     } else if (op == "sbggp" || op == "sbggpd") {
       send_request(td_api::make_object<td_api::setBackground>(
           td_api::make_object<td_api::inputBackgroundLocal>(as_input_file(args)),
-          get_gradient_pattern_background(0xABCDEF, 0xFE, 51, false), op == "sbggpd"));
+          get_gradient_pattern_background(0xABCDEF, 0xFE, 51, op == "sbggpd", false), op == "sbggpd"));
     } else if (op == "sbgs" || op == "sbgsd") {
-      send_request(td_api::make_object<td_api::setBackground>(nullptr, get_solid_background(to_integer<int32>(args)),
-                                                              op == "sbgsd"));
+      int32 color;
+      get_args(args, color);
+      send_request(td_api::make_object<td_api::setBackground>(nullptr, get_solid_background(color), op == "sbgsd"));
     } else if (op == "sbgg" || op == "sbggd") {
       int32 top_color;
       int32 bottom_color;
       get_args(args, top_color, bottom_color);
       auto background_type = get_gradient_background(top_color, bottom_color);
       send_request(td_api::make_object<td_api::setBackground>(nullptr, std::move(background_type), op == "sbggd"));
-    } else if (op == "sbgwid" || op == "sbgwidd") {
+    } else if (op == "sbgfg" || op == "sbgfgd") {
+      auto background_type = get_freeform_gradient_background(to_integers<int32>(args));
+      send_request(td_api::make_object<td_api::setBackground>(nullptr, std::move(background_type), op == "sbgfgd"));
+    } else if (op == "sbgfid" || op == "sbgfidd") {
+      int64 background_id;
+      get_args(args, background_id);
       send_request(td_api::make_object<td_api::setBackground>(
-          td_api::make_object<td_api::inputBackgroundRemote>(to_integer<int64>(args)),
+          td_api::make_object<td_api::inputBackgroundRemote>(background_id), nullptr, op == "sbgfidd"));
+    } else if (op == "sbgwid" || op == "sbgwidd") {
+      int64 background_id;
+      get_args(args, background_id);
+      send_request(td_api::make_object<td_api::setBackground>(
+          td_api::make_object<td_api::inputBackgroundRemote>(background_id),
           td_api::make_object<td_api::backgroundTypeWallpaper>(true, true), op == "sbgwidd"));
     } else if (op == "sbgpid" || op == "sbgpidd") {
+      int64 background_id;
+      get_args(args, background_id);
       send_request(td_api::make_object<td_api::setBackground>(
-          td_api::make_object<td_api::inputBackgroundRemote>(to_integer<int64>(args)),
+          td_api::make_object<td_api::inputBackgroundRemote>(background_id),
           get_solid_pattern_background(0xabcdef, 49, true), op == "sbgpidd"));
     } else if (op == "rbg") {
       send_request(td_api::make_object<td_api::removeBackground>(to_integer<int64>(args)));
@@ -2255,8 +2308,10 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getCountryCode>());
     } else if (op == "gpni") {
       send_request(td_api::make_object<td_api::getPhoneNumberInfo>(args));
-    } else if (op == "git") {
-      send_request(td_api::make_object<td_api::getInviteText>());
+    } else if (op == "gpnis") {
+      execute(td_api::make_object<td_api::getPhoneNumberInfoSync>(rand_bool() ? "en" : "", args));
+    } else if (op == "gadl") {
+      send_request(td_api::make_object<td_api::getApplicationDownloadLink>());
     } else if (op == "atos") {
       send_request(td_api::make_object<td_api::acceptTermsOfService>(args));
     } else if (op == "gdli") {
@@ -2367,13 +2422,43 @@ class CliClient final : public Actor {
           td_api::make_object<td_api::addNetworkStatistics>(td_api::make_object<td_api::networkStatisticsEntryFile>(
               td_api::make_object<td_api::fileTypeDocument>(), get_network_type(network_type), sent_bytes,
               received_bytes)));
-    } else if (op == "top_chats") {
+    } else if (op == "gtc") {
       send_request(td_api::make_object<td_api::getTopChats>(get_top_chat_category(args), 50));
     } else if (op == "rtc") {
       string chat_id;
       string category;
       get_args(args, chat_id, category);
       send_request(td_api::make_object<td_api::removeTopChat>(get_top_chat_category(category), as_chat_id(chat_id)));
+    } else if (op == "gsssn") {
+      string title = args;
+      send_request(td_api::make_object<td_api::getSuggestedStickerSetName>(title));
+    } else if (op == "cssn") {
+      string name = args;
+      send_request(td_api::make_object<td_api::checkStickerSetName>(name));
+    } else if (op == "usf" || op == "usfa") {
+      td_api::object_ptr<td_api::InputSticker> input_sticker;
+      if (op == "usfa") {
+        input_sticker = td_api::make_object<td_api::inputStickerAnimated>(as_input_file(args), "😀");
+      } else {
+        input_sticker = td_api::make_object<td_api::inputStickerStatic>(as_input_file(args), "😀", nullptr);
+      }
+      send_request(td_api::make_object<td_api::uploadStickerFile>(-1, std::move(input_sticker)));
+    } else if (op == "cnss" || op == "cnssa") {
+      string title;
+      string name;
+      string stickers;
+      get_args(args, title, name, stickers);
+      auto input_stickers =
+          transform(full_split(stickers, get_delimiter(stickers)),
+                    [op](string sticker) -> td_api::object_ptr<td_api::InputSticker> {
+                      if (op == "cnssa") {
+                        return td_api::make_object<td_api::inputStickerAnimated>(as_input_file(sticker), "😀");
+                      } else {
+                        return td_api::make_object<td_api::inputStickerStatic>(as_input_file(sticker), "😀", nullptr);
+                      }
+                    });
+      send_request(td_api::make_object<td_api::createNewStickerSet>(my_id_, title, name, false,
+                                                                    std::move(input_stickers), "tg_cli"));
     } else if (op == "sss") {
       send_request(td_api::make_object<td_api::searchStickerSet>(args));
     } else if (op == "siss") {
@@ -2508,6 +2593,11 @@ class CliClient final : public Actor {
       string message_id;
       get_args(args, chat_id, message_id);
       send_request(td_api::make_object<td_api::getMessageThread>(as_chat_id(chat_id), as_message_id(message_id)));
+    } else if (op == "gmv") {
+      string chat_id;
+      string message_id;
+      get_args(args, chat_id, message_id);
+      send_request(td_api::make_object<td_api::getMessageViewers>(as_chat_id(chat_id), as_message_id(message_id)));
     } else if (op == "gcpm") {
       string chat_id = args;
       send_request(td_api::make_object<td_api::getChatPinnedMessage>(as_chat_id(chat_id)));
@@ -2516,14 +2606,23 @@ class CliClient final : public Actor {
       string message_ids;
       get_args(args, chat_id, message_ids);
       send_request(td_api::make_object<td_api::getMessages>(as_chat_id(chat_id), as_message_ids(message_ids)));
+    } else if (op == "gsm") {
+      send_request(td_api::make_object<td_api::getChatSponsoredMessages>(as_chat_id(args)));
+    } else if (op == "vsm") {
+      string chat_id;
+      string sponsored_message_id;
+      get_args(args, chat_id, sponsored_message_id);
+      send_request(td_api::make_object<td_api::viewSponsoredMessage>(as_chat_id(chat_id),
+                                                                     to_integer<int32>(sponsored_message_id)));
     } else if (op == "gmlink") {
       string chat_id;
       string message_id;
+      int32 media_timestamp;
       bool for_album;
       bool for_comment;
-      get_args(args, chat_id, message_id, for_album, for_comment);
+      get_args(args, chat_id, message_id, media_timestamp, for_album, for_comment);
       send_request(td_api::make_object<td_api::getMessageLink>(as_chat_id(chat_id), as_message_id(message_id),
-                                                               for_album, for_comment));
+                                                               media_timestamp, for_album, for_comment));
     } else if (op == "gmec") {
       string chat_id;
       string message_id;
@@ -2581,6 +2680,11 @@ class CliClient final : public Actor {
       }
     } else if (op == "cdf") {
       send_request(td_api::make_object<td_api::cancelDownloadFile>(as_file_id(args), false));
+    } else if (op == "gsfn") {
+      string file_id;
+      string directory_name;
+      get_args(args, file_id, directory_name);
+      send_request(td_api::make_object<td_api::getSuggestedFileName>(as_file_id(file_id), directory_name));
     } else if (op == "uf" || op == "ufs" || op == "ufse") {
       string file_path;
       int32 priority;
@@ -2613,15 +2717,15 @@ class CliClient final : public Actor {
       get_args(args, chat_id, message_ids);
       send_request(
           td_api::make_object<td_api::deleteMessages>(as_chat_id(chat_id), as_message_ids(message_ids), op == "dmr"));
-    } else if (op == "fm" || op == "cm") {
+    } else if (op == "fm" || op == "cm" || op == "fmp" || op == "cmp") {
       string chat_id;
       string from_chat_id;
       string message_ids;
       get_args(args, chat_id, from_chat_id, message_ids);
       auto chat = as_chat_id(chat_id);
-      send_request(
-          td_api::make_object<td_api::forwardMessages>(chat, as_chat_id(from_chat_id), as_message_ids(message_ids),
-                                                       default_message_send_options(), op[0] == 'c', rand_bool()));
+      send_request(td_api::make_object<td_api::forwardMessages>(
+          chat, as_chat_id(from_chat_id), as_message_ids(message_ids), default_message_send_options(), op[0] == 'c',
+          rand_bool(), op.back() == 'p'));
     } else if (op == "resend") {
       string chat_id;
       string message_ids;
@@ -2684,25 +2788,59 @@ class CliClient final : public Actor {
     } else if (op == "ggc") {
       send_request(td_api::make_object<td_api::getGroupCall>(as_group_call_id(args)));
     } else if (op == "ggcss") {
-      send_request(td_api::make_object<td_api::getGroupCallStreamSegment>(as_group_call_id(args),
-                                                                          (std::time(nullptr) - 5) * 1000, 0));
+      string group_call_id;
+      int32 channel_id;
+      get_args(args, group_call_id, channel_id);
+      send_request(td_api::make_object<td_api::getGroupCallStreamSegment>(
+          as_group_call_id(group_call_id), (std::time(nullptr) - 5) * 1000, 0, channel_id, nullptr));
     } else if (op == "ssgc") {
       send_request(td_api::make_object<td_api::startScheduledGroupCall>(as_group_call_id(args)));
     } else if (op == "tgcesn" || op == "tgcesne") {
       send_request(td_api::make_object<td_api::toggleGroupCallEnabledStartNotification>(as_group_call_id(args),
                                                                                         op == "tgcesne"));
-    } else if (op == "jgc") {
+    } else if (op == "jgc" || op == "jgcv" || op == "sgcss") {
       string group_call_id;
       string participant_id;
       string invite_hash;
       get_args(args, group_call_id, participant_id, invite_hash);
-      vector<td_api::object_ptr<td_api::groupCallPayloadFingerprint>> fingerprints;
-      fingerprints.push_back(td_api::make_object<td_api::groupCallPayloadFingerprint>("hash", "setup", "fingerprint"));
-      fingerprints.push_back(td_api::make_object<td_api::groupCallPayloadFingerprint>("h2", "s2", "fingerprint2"));
-      send_request(td_api::make_object<td_api::joinGroupCall>(
-          as_group_call_id(group_call_id), as_message_sender(participant_id),
-          td_api::make_object<td_api::groupCallPayload>("ufrag", "pwd", std::move(fingerprints)), group_call_source_,
-          true, invite_hash));
+
+      auto payload = PSTRING() << "{\"ufrag\":\"ufrag\",\"pwd\":\"pwd\",\"fingerprints\":[{\"hash\":\"hash\",\"setup\":"
+                                  "\"setup\",\"fingerprint\":\"fingerprint\"},{\"hash\":\"h2\",\"setup\":\"s2\","
+                                  "\"fingerprint\":\"fingerprint2\"}],\"ssrc\":"
+                               << group_call_source_ << ',';
+      if (op == "jgc") {
+        payload.back() = '}';
+      } else {
+        string sim_sources = "[1,2]";
+        string fid_sources = "[3,4]";
+        if (op == "sgcss") {
+          sim_sources = "[5,6]";
+          fid_sources = "[7,8]";
+        }
+        payload +=
+            "\"payload-types\":[{\"id\":12345,\"name\":\"opus\",\"clockrate\":48000,\"channels\":2,\"rtcp-fbs\":[{"
+            "\"type\":\"transport-cc\",\"subtype\":\"subtype1\"},{\"type\":\"type2\",\"subtype\":\"subtype2\"}],"
+            "\"parameters\":{\"minptime\":\"10\",\"useinbandfec\":\"1\"}}],\"rtp-hdrexts\":[{\"id\":1,\"uri\":\"urn:"
+            "ietf:params:rtp-hdrext:ssrc-audio-level\"}],\"ssrc-groups\":[{\"sources\":" +
+            sim_sources + ",\"semantics\":\"SIM\"},{\"sources\":" + fid_sources + ",\"semantics\":\"FID\"}]}";
+      }
+      if (op == "sgcss") {
+        send_request(td_api::make_object<td_api::startGroupCallScreenSharing>(
+            as_group_call_id(group_call_id), group_call_source_ + 1, std::move(payload)));
+      } else {
+        send_request(td_api::make_object<td_api::joinGroupCall>(as_group_call_id(group_call_id),
+                                                                as_message_sender(participant_id), group_call_source_,
+                                                                std::move(payload), true, true, invite_hash));
+      }
+    } else if (op == "tgcssip") {
+      string group_call_id;
+      bool is_paused;
+      get_args(args, group_call_id, is_paused);
+      send_request(td_api::make_object<td_api::toggleGroupCallScreenSharingIsPaused>(as_group_call_id(group_call_id),
+                                                                                     is_paused));
+    } else if (op == "egcss") {
+      string group_call_id = args;
+      send_request(td_api::make_object<td_api::endGroupCallScreenSharing>(as_group_call_id(group_call_id)));
     } else if (op == "sgct") {
       string chat_id;
       string title;
@@ -2713,13 +2851,25 @@ class CliClient final : public Actor {
           td_api::make_object<td_api::toggleGroupCallMuteNewParticipants>(as_group_call_id(args), op == "tgcmnpe"));
     } else if (op == "rgcil") {
       send_request(td_api::make_object<td_api::revokeGroupCallInviteLink>(as_group_call_id(args)));
+    } else if (op == "tgcimvp") {
+      string group_call_id;
+      bool is_my_video_paused;
+      get_args(args, group_call_id, is_my_video_paused);
+      send_request(td_api::make_object<td_api::toggleGroupCallIsMyVideoPaused>(as_group_call_id(group_call_id),
+                                                                               is_my_video_paused));
+    } else if (op == "tgcimve") {
+      string group_call_id;
+      bool is_my_video_enabled;
+      get_args(args, group_call_id, is_my_video_enabled);
+      send_request(td_api::make_object<td_api::toggleGroupCallIsMyVideoEnabled>(as_group_call_id(group_call_id),
+                                                                                is_my_video_enabled));
     } else if (op == "sgcpis") {
       string group_call_id;
-      int32 source;
+      int32 source_id;
       bool is_speaking;
-      get_args(args, group_call_id, source, is_speaking);
+      get_args(args, group_call_id, source_id, is_speaking);
       send_request(td_api::make_object<td_api::setGroupCallParticipantIsSpeaking>(as_group_call_id(group_call_id),
-                                                                                  source, is_speaking));
+                                                                                  source_id, is_speaking));
     } else if (op == "igcp") {
       string group_call_id;
       string user_ids;
@@ -2735,8 +2885,11 @@ class CliClient final : public Actor {
     } else if (op == "sgcr") {
       string chat_id;
       string title;
-      get_args(args, chat_id, title);
-      send_request(td_api::make_object<td_api::startGroupCallRecording>(as_group_call_id(chat_id), title));
+      bool record_video;
+      bool use_portrait_orientation;
+      get_args(args, chat_id, title, record_video, use_portrait_orientation);
+      send_request(td_api::make_object<td_api::startGroupCallRecording>(as_group_call_id(chat_id), title, record_video,
+                                                                        use_portrait_orientation));
     } else if (op == "egcr") {
       string chat_id = args;
       send_request(td_api::make_object<td_api::endGroupCallRecording>(as_group_call_id(chat_id)));
@@ -2983,7 +3136,7 @@ class CliClient final : public Actor {
     } else if (op == "smt" || op == "smtp" || op == "smtf" || op == "smtpf") {
       const string &chat_id = args;
       for (int i = 1; i <= 200; i++) {
-        string message = PSTRING() << "#" << i;
+        string message = PSTRING() << (Random::fast(0, 3) == 0 && i > 90 ? "sleep " : "") << "#" << i;
         if (i == 6 || (op.back() == 'f' && i % 2 == 0)) {
           message = string(4097, 'a');
         }
@@ -3080,9 +3233,8 @@ class CliClient final : public Actor {
       vector<string> attached_files;
       get_args(args, chat_id, message_file, args);
       attached_files = full_split(args);
-      send_request(td_api::make_object<td_api::importMessages>(
-          as_chat_id(chat_id), as_input_file(message_file),
-          transform(attached_files, [](const string &attached_file) { return as_input_file(attached_file); })));
+      send_request(td_api::make_object<td_api::importMessages>(as_chat_id(chat_id), as_input_file(message_file),
+                                                               transform(attached_files, as_input_file)));
     } else if (op == "em") {
       string chat_id;
       string message_id;
@@ -3491,7 +3643,7 @@ class CliClient final : public Actor {
       string video_path;
       get_args(args, chat_id, video_path);
       send_message(chat_id,
-                   td_api::make_object<td_api::inputMessageVideoNote>(as_input_file(video_path), nullptr, 1, 5));
+                   td_api::make_object<td_api::inputMessageVideoNote>(as_input_file(video_path), nullptr, 10, 5));
     } else if (op == "svenue") {
       string chat_id;
       string latitude;
@@ -3645,6 +3797,11 @@ class CliClient final : public Actor {
       } else {
         LOG(ERROR) << "Wrong permissions size, expected 8";
       }
+    } else if (op == "sctn") {
+      string chat_id;
+      string theme_name;
+      get_args(args, chat_id, theme_name);
+      send_request(td_api::make_object<td_api::setChatTheme>(as_chat_id(chat_id), theme_name));
     } else if (op == "sccd") {
       string chat_id;
       string client_data;
@@ -3774,7 +3931,7 @@ class CliClient final : public Actor {
       string limit;
       get_args(args, chat_id, limit);
       send_request(td_api::make_object<td_api::getChatEventLog>(as_chat_id(chat_id), "", 0, as_limit(limit), nullptr,
-                                                                vector<int32>()));
+                                                                vector<int64>()));
     } else if (op == "join") {
       send_request(td_api::make_object<td_api::joinChat>(as_chat_id(args)));
     } else if (op == "leave") {
@@ -3900,6 +4057,8 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::removeRecentlyFoundChat>(as_chat_id(args)));
     } else if (op == "crfcs") {
       send_request(td_api::make_object<td_api::clearRecentlyFoundChats>());
+    } else if (op == "groc") {
+      send_request(td_api::make_object<td_api::getRecentlyOpenedChats>(as_limit(args)));
     } else if (op == "gwpp") {
       send_request(td_api::make_object<td_api::getWebPagePreview>(as_caption(args)));
     } else if (op == "gwpiv") {
@@ -3940,6 +4099,15 @@ class CliClient final : public Actor {
       string message_id;
       get_args(args, chat_id, message_id);
       send_request(td_api::make_object<td_api::openMessageContent>(as_chat_id(chat_id), as_message_id(message_id)));
+    } else if (op == "caem") {
+      string chat_id;
+      string message_id;
+      get_args(args, chat_id, message_id);
+      send_request(
+          td_api::make_object<td_api::clickAnimatedEmojiMessage>(as_chat_id(chat_id), as_message_id(message_id)));
+    } else if (op == "gilt") {
+      string link = args;
+      send_request(td_api::make_object<td_api::getInternalLinkType>(link));
     } else if (op == "geli") {
       string link = args;
       send_request(td_api::make_object<td_api::getExternalLinkInfo>(link));
@@ -4016,12 +4184,6 @@ class CliClient final : public Actor {
       get_args(args, chat_id, file_id, reason, text);
       send_request(td_api::make_object<td_api::reportChatPhoto>(as_chat_id(chat_id), as_file_id(file_id),
                                                                 get_chat_report_reason(reason), text));
-    } else if (op == "gcsu") {
-      string chat_id;
-      string parameters;
-      bool is_dark;
-      get_args(args, chat_id, parameters, is_dark);
-      send_request(td_api::make_object<td_api::getChatStatisticsUrl>(as_chat_id(chat_id), parameters, is_dark));
     } else if (op == "gcst") {
       string chat_id;
       bool is_dark;
@@ -4039,8 +4201,7 @@ class CliClient final : public Actor {
       string chat_id;
       string message_id;
       string user_id;
-      int32 score;
-      get_args(args, chat_id, message_id, user_id, score);
+      get_args(args, chat_id, message_id, user_id);
       send_request(td_api::make_object<td_api::getGameHighScores>(as_chat_id(chat_id), as_message_id(message_id),
                                                                   as_user_id(user_id)));
     } else if (op == "gmst") {
@@ -4203,7 +4364,7 @@ class CliClient final : public Actor {
       }
     } else if (op == "q" || op == "Quit") {
       quit();
-    } else if (op == "dnq" || op == "DumpNetQueries") {
+    } else if (op == "dnq") {
       dump_pending_network_queries(*net_query_stats_);
     } else if (op == "fatal") {
       LOG(FATAL) << "Fatal!";
@@ -4219,7 +4380,7 @@ class CliClient final : public Actor {
   }
 
   bool is_inited_ = false;
-  void loop() override {
+  void loop() final {
     if (!is_inited_) {
       is_inited_ = true;
       init();
@@ -4255,7 +4416,7 @@ class CliClient final : public Actor {
     }
   }
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     if (close_flag_) {
       return;
     }
@@ -4296,12 +4457,12 @@ class CliClient final : public Actor {
     }
   }
 
-  void notify() override {
+  void notify() final {
     auto guard = scheduler_->get_send_guard();
     send_event_later(actor_id(), Event::yield());
   }
 
-  void hangup_shared() override {
+  void hangup_shared() final {
     CHECK(get_link_token() == 1);
     LOG(INFO) << "StdinReader stopped";
     is_stdin_reader_stopped_ = true;
@@ -4323,7 +4484,7 @@ class CliClient final : public Actor {
 
   std::unordered_map<int32, double> being_downloaded_files_;
 
-  int32 my_id_ = 0;
+  int64 my_id_ = 0;
   string schedule_date_;
   string message_thread_id_;
 
@@ -4454,7 +4615,7 @@ void main(int argc, char **argv) {
   combined_log.set_first_verbosity_level(new_verbosity_level);
 
   if (combined_log.get_first() == &cli_log) {
-    file_log.init("tg_cli.log", 1000 << 20).ensure();
+    file_log.init("tg_cli.log", 1000 << 20, false).ensure();
     file_log.lazy_rotate();
     combined_log.set_second(&ts_log);
     combined_log.set_second_verbosity_level(VERBOSITY_NAME(DEBUG));
@@ -4464,7 +4625,7 @@ void main(int argc, char **argv) {
     ConcurrentScheduler scheduler;
     scheduler.init(3);
 
-    class CreateClient : public Actor {
+    class CreateClient final : public Actor {
      public:
       CreateClient(ConcurrentScheduler *scheduler, bool use_test_dc, bool get_chat_list, bool disable_network,
                    int32 api_id, std::string api_hash)
@@ -4477,7 +4638,7 @@ void main(int argc, char **argv) {
       }
 
      private:
-      void start_up() override {
+      void start_up() final {
         create_actor<CliClient>("CliClient", scheduler_, use_test_dc_, get_chat_list_, disable_network_, api_id_,
                                 api_hash_)
             .release();

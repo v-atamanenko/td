@@ -11,9 +11,9 @@
 #include "td/telegram/NotificationGroupId.h"
 #include "td/telegram/NotificationGroupKey.h"
 
-#include "td/actor/PromiseFuture.h"
-
 #include "td/db/KeyValueSyncInterface.h"
+
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -55,7 +55,8 @@ class DialogDbSyncInterface {
 
   virtual Result<int32> get_secret_chat_count(FolderId folder_id) = 0;
 
-  virtual Status begin_transaction() = 0;
+  virtual Status begin_read_transaction() = 0;
+  virtual Status begin_write_transaction() = 0;
   virtual Status commit_transaction() = 0;
 };
 

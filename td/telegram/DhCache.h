@@ -6,19 +6,19 @@
 //
 #pragma once
 
-#include "td/mtproto/DhHandshake.h"
+#include "td/mtproto/DhCallback.h"
 
 #include "td/utils/Slice.h"
 
 namespace td {
 
-class DhCache : public DhCallback {
+class DhCache final : public mtproto::DhCallback {
  public:
-  int is_good_prime(Slice prime_str) const override;
-  void add_good_prime(Slice prime_str) const override;
-  void add_bad_prime(Slice prime_str) const override;
+  int is_good_prime(Slice prime_str) const final;
+  void add_good_prime(Slice prime_str) const final;
+  void add_bad_prime(Slice prime_str) const final;
 
-  static DhCallback *instance() {
+  static mtproto::DhCallback *instance() {
     static DhCache res;
     return &res;
   }

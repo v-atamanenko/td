@@ -27,13 +27,14 @@ HandshakeActor::HandshakeActor(unique_ptr<AuthKeyHandshake> handshake, unique_pt
 }
 
 void HandshakeActor::close() {
-  finish(Status::Error("Cancelled"));
+  finish(Status::Error("Canceled"));
   stop();
 }
 
 void HandshakeActor::start_up() {
   Scheduler::subscribe(connection_->get_poll_info().extract_pollable_fd(this));
   set_timeout_in(timeout_);
+  handshake_->set_timeout_in(timeout_);
   yield();
 }
 
@@ -49,6 +50,26 @@ void HandshakeActor::loop() {
   }
 }
 
+void HandshakeActor::hangup() {
+  finish(Status::Error(1, "Canceled"));
+  stop();
+}
+
+void HandshakeActor::timeout_expired() {
+  finish(Status::Error("Timeout expired"));
+  stop();
+}
+
+void HandshakeActor::tear_down() {
+  finish(Status::OK());
+}
+
+void HandshakeActor::finish(Status status) {
+  // NB: order may be important for parent
+  return_connection(std::move(status));
+  return_handshake();
+}
+
 void HandshakeActor::return_connection(Status status) {
   auto raw_connection = connection_->move_as_raw_connection();
   if (!raw_connection) {
@@ -56,7 +77,7 @@ void HandshakeActor::return_connection(Status status) {
     return;
   }
   if (status.is_error() && !raw_connection->extra().debug_str.empty()) {
-    status = Status::Error(status.code(), PSLICE() << status.message() << " : " << raw_connection->extra().debug_str);
+    status = status.move_as_error_suffix(PSLICE() << " : " << raw_connection->extra().debug_str);
   }
   Scheduler::unsubscribe(raw_connection->get_poll_info().get_pollable_fd_ref());
   if (raw_connection_promise_) {

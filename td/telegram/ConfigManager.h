@@ -83,7 +83,7 @@ using FullConfig = tl_object_ptr<telegram_api::config>;
 ActorOwn<> get_full_config(DcId dc_id, IPAddress ip_address, Promise<FullConfig> promise);
 
 class ConfigRecoverer;
-class ConfigManager : public NetQueryCallback {
+class ConfigManager final : public NetQueryCallback {
  public:
   explicit ConfigManager(ActorShared<> parent);
 
@@ -93,8 +93,6 @@ class ConfigManager : public NetQueryCallback {
 
   void get_app_config(Promise<td_api::object_ptr<td_api::JsonValue>> &&promise);
 
-  void get_external_link_info(string &&link, Promise<td_api::object_ptr<td_api::LoginUrlInfo>> &&promise);
-
   void get_content_settings(Promise<Unit> &&promise);
 
   void set_content_settings(bool ignore_sensitive_content_restrictions, Promise<Unit> &&promise);
@@ -102,6 +100,8 @@ class ConfigManager : public NetQueryCallback {
   void get_global_privacy_settings(Promise<Unit> &&promise);
 
   void set_archive_and_mute(bool archive_and_mute, Promise<Unit> &&promise);
+
+  void hide_suggested_action(SuggestedAction suggested_action);
 
   void dismiss_suggested_action(SuggestedAction suggested_action, Promise<Unit> &&promise);
 
@@ -115,11 +115,6 @@ class ConfigManager : public NetQueryCallback {
   ActorOwn<ConfigRecoverer> config_recoverer_;
   int ref_cnt_{1};
   Timestamp expire_time_;
-
-  string autologin_token_;
-  vector<string> autologin_domains_;
-  double autologin_update_time_ = 0.0;
-  vector<string> url_auth_domains_;
 
   FloodControlStrict lazy_request_flood_control_;
 
@@ -141,13 +136,13 @@ class ConfigManager : public NetQueryCallback {
 
   static constexpr uint64 REFCNT_TOKEN = std::numeric_limits<uint64>::max() - 2;
 
-  void start_up() override;
-  void hangup_shared() override;
-  void hangup() override;
-  void loop() override;
+  void start_up() final;
+  void hangup_shared() final;
+  void hangup() final;
+  void loop() final;
   void try_stop();
 
-  void on_result(NetQueryPtr res) override;
+  void on_result(NetQueryPtr res) final;
 
   void request_config_from_dc_impl(DcId dc_id);
   void process_config(tl_object_ptr<telegram_api::config> config);

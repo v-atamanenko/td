@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 
 if (POLICY CMP0065)
-  # fix "arm-vita-eabi-g++ is not able to compile a simple test program." https://github.com/tdlib/td/issues/1558
+  # do not export symbols from executables
+  # affects compiler checks in project(), so must be set before it
   cmake_policy(SET CMP0065 NEW)
 endif()
 

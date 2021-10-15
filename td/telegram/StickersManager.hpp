@@ -12,17 +12,19 @@
 #include "td/telegram/misc.h"
 #include "td/telegram/Photo.hpp"
 
+#include "td/utils/emoji.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
 #include "td/utils/tl_helpers.h"
+#include "td/utils/utf8.h"
 
 namespace td {
 
 template <class StorerT>
-void StickersManager::store_sticker(FileId file_id, bool in_sticker_set, StorerT &storer) const {
+void StickersManager::store_sticker(FileId file_id, bool in_sticker_set, StorerT &storer, const char *source) const {
   auto it = stickers_.find(file_id);
-  CHECK(it != stickers_.end());
+  LOG_CHECK(it != stickers_.end()) << file_id << ' ' << in_sticker_set << ' ' << source;
   const Sticker *sticker = it->second.get();
   bool has_sticker_set_access_hash = sticker->set_id.is_valid() && !in_sticker_set;
   bool has_minithumbnail = !sticker->minithumbnail.empty();
@@ -167,7 +169,7 @@ void StickersManager::store_sticker_set(const StickerSet *sticker_set, bool with
     store(stored_sticker_count, storer);
     for (uint32 i = 0; i < stored_sticker_count; i++) {
       auto sticker_id = sticker_set->sticker_ids[i];
-      store_sticker(sticker_id, true, storer);
+      store_sticker(sticker_id, true, storer, "store_sticker_set");
 
       if (was_loaded) {
         auto it = sticker_set->sticker_emojis_map_.find(sticker_id);
@@ -299,14 +301,13 @@ void StickersManager::parse_sticker_set(StickerSet *sticker_set, ParserT &parser
       if (sticker->set_id != sticker_set->id) {
         LOG_IF(ERROR, sticker->set_id.is_valid()) << "Sticker " << sticker_id << " set_id has changed";
         sticker->set_id = sticker_set->id;
-        sticker->is_changed = true;
       }
 
       if (sticker_set->was_loaded) {
         vector<string> emojis;
         parse(emojis, parser);
         for (auto &emoji : emojis) {
-          auto &sticker_ids = sticker_set->emoji_stickers_map_[remove_emoji_modifiers(emoji)];
+          auto &sticker_ids = sticker_set->emoji_stickers_map_[remove_emoji_modifiers(emoji).str()];
           if (sticker_ids.empty() || sticker_ids.back() != sticker_id) {
             sticker_ids.push_back(sticker_id);
           }
@@ -316,6 +317,13 @@ void StickersManager::parse_sticker_set(StickerSet *sticker_set, ParserT &parser
     }
     if (expires_at > sticker_set->expires_at) {
       sticker_set->expires_at = expires_at;
+    }
+
+    if (!check_utf8(sticker_set->title)) {
+      return parser.set_error("Have invalid sticker set title");
+    }
+    if (!check_utf8(sticker_set->short_name)) {
+      return parser.set_error("Have invalid sticker set name");
     }
   }
 }

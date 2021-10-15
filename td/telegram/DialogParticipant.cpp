@@ -13,6 +13,7 @@
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
+#include "td/utils/misc.h"
 
 #include <limits>
 
@@ -407,12 +408,20 @@ DialogParticipantStatus get_dialog_participant_status(const tl_object_ptr<td_api
   switch (constructor_id) {
     case td_api::chatMemberStatusCreator::ID: {
       auto st = static_cast<const td_api::chatMemberStatusCreator *>(status.get());
-      return DialogParticipantStatus::Creator(st->is_member_, st->is_anonymous_, st->custom_title_);
+      auto custom_title = st->custom_title_;
+      if (!clean_input_string(custom_title)) {
+        custom_title.clear();
+      }
+      return DialogParticipantStatus::Creator(st->is_member_, st->is_anonymous_, custom_title);
     }
     case td_api::chatMemberStatusAdministrator::ID: {
       auto st = static_cast<const td_api::chatMemberStatusAdministrator *>(status.get());
+      auto custom_title = st->custom_title_;
+      if (!clean_input_string(custom_title)) {
+        custom_title.clear();
+      }
       return DialogParticipantStatus::Administrator(
-          st->is_anonymous_, st->custom_title_, true /*st->can_be_edited_*/, st->can_manage_chat_, st->can_change_info_,
+          st->is_anonymous_, custom_title, true /*st->can_be_edited_*/, st->can_manage_chat_, st->can_change_info_,
           st->can_post_messages_, st->can_edit_messages_, st->can_delete_messages_, st->can_invite_users_,
           st->can_restrict_members_, st->can_pin_messages_, st->can_promote_members_, st->can_manage_voice_chats_);
     }
@@ -421,6 +430,10 @@ DialogParticipantStatus get_dialog_participant_status(const tl_object_ptr<td_api
     case td_api::chatMemberStatusRestricted::ID: {
       auto st = static_cast<const td_api::chatMemberStatusRestricted *>(status.get());
       auto permissions = st->permissions_.get();
+      if (permissions == nullptr) {
+        return DialogParticipantStatus::Restricted(st->is_member_, st->restricted_until_date_, false, false, false,
+                                                   false, false, false, false, false, false, false, false);
+      }
       bool can_send_polls = permissions->can_send_polls_;
       bool can_send_media = permissions->can_send_media_messages_;
       bool can_send_messages = permissions->can_send_messages_ || can_send_media || can_send_polls ||

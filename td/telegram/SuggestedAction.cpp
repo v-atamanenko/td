@@ -25,6 +25,10 @@ void SuggestedAction::init(Type type) {
 SuggestedAction::SuggestedAction(Slice action_str) {
   if (action_str == Slice("AUTOARCHIVE_POPULAR")) {
     init(Type::EnableArchiveAndMuteNewChats);
+  } else if (action_str == Slice("VALIDATE_PASSWORD")) {
+    init(Type::CheckPassword);
+  } else if (action_str == Slice("VALIDATE_PHONE_NUMBER")) {
+    init(Type::CheckPhoneNumber);
   } else if (action_str == Slice("NEWCOMER_TICKS")) {
     init(Type::SeeTicksHint);
   }
@@ -45,6 +49,9 @@ SuggestedAction::SuggestedAction(const td_api::object_ptr<td_api::SuggestedActio
   switch (suggested_action->get_id()) {
     case td_api::suggestedActionEnableArchiveAndMuteNewChats::ID:
       init(Type::EnableArchiveAndMuteNewChats);
+      break;
+    case td_api::suggestedActionCheckPassword::ID:
+      init(Type::CheckPassword);
       break;
     case td_api::suggestedActionCheckPhoneNumber::ID:
       init(Type::CheckPhoneNumber);
@@ -70,6 +77,10 @@ string SuggestedAction::get_suggested_action_str() const {
   switch (type_) {
     case Type::EnableArchiveAndMuteNewChats:
       return "AUTOARCHIVE_POPULAR";
+    case Type::CheckPassword:
+      return "VALIDATE_PASSWORD";
+    case Type::CheckPhoneNumber:
+      return "VALIDATE_PHONE_NUMBER";
     case Type::SeeTicksHint:
       return "NEWCOMER_TICKS";
     case Type::ConvertToGigagroup:
@@ -85,6 +96,8 @@ td_api::object_ptr<td_api::SuggestedAction> SuggestedAction::get_suggested_actio
       return nullptr;
     case Type::EnableArchiveAndMuteNewChats:
       return td_api::make_object<td_api::suggestedActionEnableArchiveAndMuteNewChats>();
+    case Type::CheckPassword:
+      return td_api::make_object<td_api::suggestedActionCheckPassword>();
     case Type::CheckPhoneNumber:
       return td_api::make_object<td_api::suggestedActionCheckPhoneNumber>();
     case Type::SeeTicksHint:
@@ -123,8 +136,8 @@ void update_suggested_actions(vector<SuggestedAction> &suggested_actions,
     } else if (old_it == suggested_actions.end() || *new_it < *old_it) {
       added_actions.push_back(*new_it++);
     } else {
-      old_it++;
-      new_it++;
+      ++old_it;
+      ++new_it;
     }
   }
   CHECK(!added_actions.empty() || !removed_actions.empty());

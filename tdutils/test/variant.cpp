@@ -9,8 +9,6 @@
 #include "td/utils/tests.h"
 #include "td/utils/Variant.h"
 
-REGISTER_TESTS(variant);
-
 static const size_t BUF_SIZE = 1024 * 1024;
 static char buf[BUF_SIZE], buf2[BUF_SIZE];
 static td::StringBuilder sb(td::MutableSlice(buf, BUF_SIZE - 1));
@@ -70,4 +68,4 @@ TEST(Variant, simple) {
   }
   ASSERT_STREQ("-C", move_sb());
   sb.clear();
-};
+}

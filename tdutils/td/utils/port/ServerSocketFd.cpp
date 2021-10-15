@@ -40,7 +40,7 @@ namespace td {
 
 namespace detail {
 #if TD_PORT_WINDOWS
-class ServerSocketFdImpl : private Iocp::Callback {
+class ServerSocketFdImpl final : private Iocp::Callback {
  public:
   ServerSocketFdImpl(NativeFd fd, int socket_family) : info_(std::move(fd)), socket_family_(socket_family) {
     VLOG(fd) << get_native_fd() << " create ServerSocketFd";
@@ -172,7 +172,7 @@ class ServerSocketFdImpl : private Iocp::Callback {
     get_poll_info().add_flags_from_poll(PollFlags::Error());
   }
 
-  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) override {
+  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) final {
     // called from other thread
     if (dec_refcnt() || close_flag_) {
       VLOG(fd) << "Ignore IOCP (server socket is closing)";

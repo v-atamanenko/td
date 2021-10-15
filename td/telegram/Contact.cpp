@@ -36,8 +36,16 @@ UserId Contact::get_user_id() const {
   return user_id_;
 }
 
-string Contact::get_phone_number() const {
+const string &Contact::get_phone_number() const {
   return phone_number_;
+}
+
+const string &Contact::get_first_name() const {
+  return first_name_;
+}
+
+const string &Contact::get_last_name() const {
+  return last_name_;
 }
 
 tl_object_ptr<td_api::contact> Contact::get_contact_object() const {
@@ -50,7 +58,7 @@ tl_object_ptr<telegram_api::inputMediaContact> Contact::get_input_media_contact(
 
 SecretInputMedia Contact::get_secret_input_media_contact() const {
   return SecretInputMedia{nullptr, make_tl_object<secret_api::decryptedMessageMediaContact>(
-                                       phone_number_, first_name_, last_name_, user_id_.get())};
+                                       phone_number_, first_name_, last_name_, static_cast<int32>(0))};
 }
 
 tl_object_ptr<telegram_api::inputPhoneContact> Contact::get_input_phone_contact(int64 client_id) const {
@@ -82,10 +90,10 @@ StringBuilder &operator<<(StringBuilder &string_builder, const Contact &contact)
                         << ", vCard size = " << contact.vcard_.size() << contact.user_id_ << "]";
 }
 
-Result<Contact> process_input_message_contact(tl_object_ptr<td_api::InputMessageContent> &&input_message_content) {
-  CHECK(input_message_content != nullptr);
-  CHECK(input_message_content->get_id() == td_api::inputMessageContact::ID);
-  auto contact = std::move(static_cast<td_api::inputMessageContact *>(input_message_content.get())->contact_);
+Result<Contact> get_contact(td_api::object_ptr<td_api::contact> &&contact) {
+  if (contact == nullptr) {
+    return Status::Error(400, "Contact must be non-empty");
+  }
 
   if (!clean_input_string(contact->phone_number_)) {
     return Status::Error(400, "Phone number must be encoded in UTF-8");
@@ -100,8 +108,14 @@ Result<Contact> process_input_message_contact(tl_object_ptr<td_api::InputMessage
     return Status::Error(400, "vCard must be encoded in UTF-8");
   }
 
-  return Contact(contact->phone_number_, contact->first_name_, contact->last_name_, contact->vcard_,
-                 UserId(contact->user_id_));
+  return Contact(std::move(contact->phone_number_), std::move(contact->first_name_), std::move(contact->last_name_),
+                 std::move(contact->vcard_), UserId(contact->user_id_));
+}
+
+Result<Contact> process_input_message_contact(tl_object_ptr<td_api::InputMessageContent> &&input_message_content) {
+  CHECK(input_message_content != nullptr);
+  CHECK(input_message_content->get_id() == td_api::inputMessageContact::ID);
+  return get_contact(std::move(static_cast<td_api::inputMessageContact *>(input_message_content.get())->contact_));
 }
 
 }  // namespace td

@@ -6,13 +6,13 @@
 //
 #pragma once
 
+#include "td/telegram/AuthManager.h"
+#include "td/telegram/Global.h"
+#include "td/telegram/Td.h"
+#include "td/telegram/td_api.h"
+
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
-
-#include "td/telegram/AuthManager.h"
-#include "td/telegram/Td.h"
-
-#include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
@@ -60,7 +60,7 @@ class RequestActor : public Actor {
     }
   }
 
-  void raw_event(const Event::Raw &event) override {
+  void raw_event(const Event::Raw &event) final {
     if (future_.is_error()) {
       auto error = future_.move_as_error();
       if (error == Status::Error<FutureActor<T>::HANGUP_ERROR_CODE>()) {
@@ -84,10 +84,10 @@ class RequestActor : public Actor {
     }
   }
 
-  void on_start_migrate(int32 /*sched_id*/) override {
+  void on_start_migrate(int32 /*sched_id*/) final {
     UNREACHABLE();
   }
-  void on_finish_migrate() override {
+  void on_finish_migrate() final {
     UNREACHABLE();
   }
 
@@ -127,8 +127,8 @@ class RequestActor : public Actor {
     CHECK((std::is_same<T, Unit>::value));  // all other results should be implicitly handled by overriding this method
   }
 
-  void hangup() override {
-    do_send_error(Status::Error(500, "Request aborted"));
+  void hangup() final {
+    do_send_error(Global::request_aborted_error());
     stop();
   }
 
@@ -144,7 +144,7 @@ class RequestOnceActor : public RequestActor<> {
   RequestOnceActor(ActorShared<Td> td_id, uint64 request_id) : RequestActor(std::move(td_id), request_id) {
   }
 
-  void loop() override {
+  void loop() final {
     if (get_tries() < 2) {
       do_send_result();
       stop();

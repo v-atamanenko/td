@@ -6,16 +6,15 @@
 //
 #include "td/telegram/net/DcAuthManager.h"
 
-#include "td/actor/actor.h"
-
 #include "td/telegram/Global.h"
 #include "td/telegram/net/AuthDataShared.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UniqueId.h"
 
-#include "td/telegram/telegram_api.h"
+#include "td/actor/actor.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
@@ -43,11 +42,11 @@ DcAuthManager::DcAuthManager(ActorShared<> parent) {
 
 void DcAuthManager::add_dc(std::shared_ptr<AuthDataShared> auth_data) {
   VLOG(dc) << "Register " << auth_data->dc_id();
-  class Listener : public AuthDataShared::Listener {
+  class Listener final : public AuthDataShared::Listener {
    public:
     explicit Listener(ActorShared<DcAuthManager> dc_manager) : dc_manager_(std::move(dc_manager)) {
     }
-    bool notify() override {
+    bool notify() final {
       if (!dc_manager_.is_alive()) {
         return false;
       }

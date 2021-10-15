@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
+if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
+  message(FATAL_ERROR "CMake >= 3.0.2 is required")
+endif()
 
 if (POLICY CMP0065)
   # fix "arm-vita-eabi-g++ is not able to compile a simple test program." https://github.com/tdlib/td/issues/1558
@@ -25,10 +27,12 @@ endif()
 
 #SOURCE SETS
 set(TD_TEST_SOURCE
+  ${CMAKE_CURRENT_SOURCE_DIR}/country_info.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/db.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/http.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/mtproto.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/link.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/message_entities.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/mtproto.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/poll.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/secret.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/secure_storage.cpp

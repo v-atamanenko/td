@@ -69,7 +69,7 @@ FileFd &Stderr() {
 
 #if TD_PORT_WINDOWS
 namespace detail {
-class BufferedStdinImpl : public Iocp::Callback {
+class BufferedStdinImpl final : private Iocp::Callback {
  public:
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM)
   BufferedStdinImpl() : info_(NativeFd(GetStdHandle(STD_INPUT_HANDLE), true)) {
@@ -138,7 +138,7 @@ class BufferedStdinImpl : public Iocp::Callback {
       dec_refcnt();
     }
   }
-  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) override {
+  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) final {
     info_.add_flags_from_poll(PollFlags::Read());
     dec_refcnt();
   }

@@ -15,8 +15,6 @@
 #include "td/telegram/TdParameters.h"
 #include "td/telegram/Version.h"
 
-#include "td/actor/MultiPromise.h"
-
 #include "td/db/binlog/Binlog.h"
 #include "td/db/binlog/ConcurrentBinlog.h"
 #include "td/db/BinlogKeyValue.h"
@@ -25,6 +23,8 @@
 #include "td/db/SqliteKeyValue.h"
 #include "td/db/SqliteKeyValueAsync.h"
 #include "td/db/SqliteKeyValueSafe.h"
+
+#include "td/actor/MultiPromise.h"
 
 #include "td/utils/common.h"
 #include "td/utils/format.h"
@@ -54,6 +54,7 @@ Result<TdDb::EncryptionInfo> check_encryption(string path) {
   Binlog binlog;
   auto status = binlog.init(path, Binlog::Callback());
   if (status.is_error() && status.code() != Binlog::Error::WrongPassword) {
+    LOG(WARNING) << "Failed to check binlog: " << status;
     return Status::Error(400, status.message());
   }
   TdDb::EncryptionInfo info;
@@ -106,7 +107,7 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
       case LogEvent::HandlerType::UpdateDialogNotificationSettingsOnServer:
       case LogEvent::HandlerType::UpdateScopeNotificationSettingsOnServer:
       case LogEvent::HandlerType::ResetAllNotificationSettingsOnServer:
-      case LogEvent::HandlerType::ChangeDialogReportSpamStateOnServer:
+      case LogEvent::HandlerType::ToggleDialogReportSpamStateOnServer:
       case LogEvent::HandlerType::GetDialogFromServer:
       case LogEvent::HandlerType::GetChannelDifference:
       case LogEvent::HandlerType::ReadHistoryInSecretChat:
@@ -139,17 +140,6 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
   if (binlog_info.is_error()) {
     return binlog_info.move_as_error();
   }
-  return Status::OK();
-}
-
-Status init_db(SqliteDb &db) {
-  TRY_STATUS(db.exec("PRAGMA encoding=\"UTF-8\""));
-  TRY_STATUS(db.exec("PRAGMA journal_mode=WAL"));
-
-  TRY_STATUS(db.exec("PRAGMA synchronous=NORMAL"));
-  TRY_STATUS(db.exec("PRAGMA temp_store=MEMORY"));
-  TRY_STATUS(db.exec("PRAGMA secure_delete=1"));
-
   return Status::OK();
 }
 
@@ -287,6 +277,8 @@ void TdDb::do_close(Promise<> on_finished, bool destroy_flag) {
     }
     binlog_.reset();
   }
+
+  lock.set_value(Unit());
 }
 
 Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, DbKey key, DbKey old_key,
@@ -306,12 +298,12 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, DbK
   }
 
   sqlite_path_ = sql_database_path;
-  TRY_RESULT(db_instance, SqliteDb::change_key(sqlite_path_, key, old_key));
+  TRY_RESULT(db_instance, SqliteDb::change_key(sqlite_path_, true, key, old_key));
   sql_connection_ = std::make_shared<SqliteConnectionSafe>(sql_database_path, key, db_instance.get_cipher_version());
   sql_connection_->set(std::move(db_instance));
   auto &db = sql_connection_->get();
-
-  TRY_STATUS(init_db(db));
+  TRY_STATUS(db.exec("PRAGMA journal_mode=WAL"));
+  TRY_STATUS(db.exec("PRAGMA secure_delete=1"));
 
   // Init databases
   // Do initialization once and before everything else to avoid "database is locked" error.
@@ -363,6 +355,9 @@ Status TdDb::init_sqlite(int32 scheduler_id, const TdParameters &parameters, DbK
   }
   if (user_version == 0) {
     binlog_pmc.erase("next_contacts_sync_date");
+    binlog_pmc.erase("saved_contact_count");
+    binlog_pmc.erase("old_featured_sticker_set_count");
+    binlog_pmc.erase("invalidate_old_featured_sticker_sets");
   }
   binlog_pmc.force_sync({});
 

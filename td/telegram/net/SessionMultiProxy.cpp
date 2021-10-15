@@ -126,12 +126,12 @@ void SessionMultiProxy::init() {
                             << format::cond(session_count_ > 1, format::concat("#", i));
 
     SessionInfo info;
-    class Callback : public SessionProxy::Callback {
+    class Callback final : public SessionProxy::Callback {
      public:
       Callback(ActorId<SessionMultiProxy> parent, uint32 generation, int32 session_id)
           : parent_(parent), generation_(generation), session_id_(session_id) {
       }
-      void on_query_finished() override {
+      void on_query_finished() final {
         send_closure(parent_, &SessionMultiProxy::on_query_finished, generation_, session_id_);
       }
 

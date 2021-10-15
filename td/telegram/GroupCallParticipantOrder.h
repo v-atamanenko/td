@@ -12,9 +12,10 @@
 namespace td {
 
 class GroupCallParticipantOrder {
-  int32 active_date = 0;
-  int32 joined_date = 0;
-  int64 raise_hand_rating = 0;
+  bool has_video_ = false;
+  int32 active_date_ = 0;
+  int32 joined_date_ = 0;
+  int64 raise_hand_rating_ = 0;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder,
                                    const GroupCallParticipantOrder &group_call_participant_order);
@@ -26,8 +27,11 @@ class GroupCallParticipantOrder {
  public:
   GroupCallParticipantOrder() = default;
 
-  GroupCallParticipantOrder(int32 active_date, int64 raise_hand_rating, int32 joined_date)
-      : active_date(active_date), joined_date(joined_date), raise_hand_rating(raise_hand_rating) {
+  GroupCallParticipantOrder(bool has_video, int32 active_date, int64 raise_hand_rating, int32 joined_date)
+      : has_video_(has_video)
+      , active_date_(active_date)
+      , joined_date_(joined_date)
+      , raise_hand_rating_(raise_hand_rating) {
   }
 
   static GroupCallParticipantOrder min();
@@ -35,6 +39,10 @@ class GroupCallParticipantOrder {
   static GroupCallParticipantOrder max();
 
   bool is_valid() const;
+
+  bool has_video() const {
+    return has_video_;
+  }
 
   string get_group_call_participant_order_object() const;
 };

@@ -58,7 +58,7 @@ StringBuilder &operator<<(StringBuilder &sb, const TestInfo &info) {
   return sb << info.name << " " << info.result_hash << "\n";
 }
 
-class RegressionTesterImpl : public RegressionTester {
+class RegressionTesterImpl final : public RegressionTester {
  public:
   static void destroy(CSlice db_path) {
     unlink(db_path).ignore();
@@ -72,7 +72,7 @@ class RegressionTesterImpl : public RegressionTester {
     mkdir(db_cache_dir_).ensure();
   }
 
-  Status verify_test(Slice name, Slice result) override {
+  Status verify_test(Slice name, Slice result) final {
 #if TD_HAVE_OPENSSL
     auto hash = PSTRING() << format::as_hex_dump<0>(Slice(sha256(result)));
 #else
@@ -99,7 +99,7 @@ class RegressionTesterImpl : public RegressionTester {
     return Status::OK();
   }
 
-  void save_db() override {
+  void save_db() final {
     if (!is_dirty_) {
       return;
     }

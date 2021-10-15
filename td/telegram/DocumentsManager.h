@@ -12,6 +12,7 @@
 
 #include "td/telegram/DialogId.h"
 #include "td/telegram/Document.h"
+#include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/SecretInputMedia.h"
@@ -35,7 +36,7 @@ class DocumentsManager {
    public:
     tl_object_ptr<telegram_api::document> document;
     // or
-    tl_object_ptr<telegram_api::encryptedFile> secret_file;
+    unique_ptr<EncryptedFile> secret_file;
     tl_object_ptr<secret_api::decryptedMessageMediaDocument> secret_document;
     // or
     tl_object_ptr<telegram_api::WebDocument> web_document;
@@ -62,7 +63,7 @@ class DocumentsManager {
         , attributes(std::move(attributes)) {
     }
 
-    RemoteDocument(tl_object_ptr<telegram_api::encryptedFile> &&secret_file,
+    RemoteDocument(unique_ptr<EncryptedFile> &&secret_file,
                    tl_object_ptr<secret_api::decryptedMessageMediaDocument> &&secret_document,
                    vector<tl_object_ptr<telegram_api::DocumentAttribute>> &&attributes)
         : document(nullptr)
@@ -74,7 +75,7 @@ class DocumentsManager {
     }
   };
 
-  tl_object_ptr<td_api::document> get_document_object(FileId file_id, PhotoFormat thumbnail_format);
+  tl_object_ptr<td_api::document> get_document_object(FileId file_id, PhotoFormat thumbnail_format) const;
 
   Document on_get_document(RemoteDocument remote_document, DialogId owner_dialog_id,
                            MultiPromiseActor *load_data_multipromise_ptr = nullptr,
@@ -100,7 +101,7 @@ class DocumentsManager {
 
   FileId dup_document(FileId new_id, FileId old_id);
 
-  bool merge_documents(FileId new_id, FileId old_id, bool can_delete_old);
+  void merge_documents(FileId new_id, FileId old_id, bool can_delete_old);
 
   template <class StorerT>
   void store_document(FileId file_id, StorerT &storer) const;
@@ -118,8 +119,6 @@ class DocumentsManager {
     string minithumbnail;
     PhotoSize thumbnail;
     FileId file_id;
-
-    bool is_changed = true;
   };
 
   const GeneralDocument *get_document(FileId file_id) const;

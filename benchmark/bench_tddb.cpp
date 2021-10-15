@@ -11,11 +11,11 @@
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/UserId.h"
 
-#include "td/actor/ConcurrentScheduler.h"
-#include "td/actor/PromiseFuture.h"
-
 #include "td/db/SqliteConnectionSafe.h"
 #include "td/db/SqliteDb.h"
+
+#include "td/actor/ConcurrentScheduler.h"
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/benchmark.h"
 #include "td/utils/buffer.h"
@@ -37,25 +37,25 @@ static Status init_db(SqliteDb &db) {
   return Status::OK();
 }
 
-class MessagesDbBench : public Benchmark {
+class MessagesDbBench final : public Benchmark {
  public:
-  string get_description() const override {
+  string get_description() const final {
     return "MessagesDb";
   }
-  void start_up() override {
+  void start_up() final {
     LOG(ERROR) << "START UP";
     do_start_up().ensure();
     scheduler_->start();
   }
-  void run(int n) override {
+  void run(int n) final {
     auto guard = scheduler_->get_main_guard();
     for (int i = 0; i < n; i += 20) {
-      auto dialog_id = DialogId{UserId{Random::fast(1, 100)}};
+      auto dialog_id = DialogId(UserId(static_cast<int64>(Random::fast(1, 100))));
       auto message_id_raw = Random::fast(1, 100000);
       for (int j = 0; j < 20; j++) {
         auto message_id = MessageId{ServerMessageId{message_id_raw + j}};
         auto unique_message_id = ServerMessageId{i + 1};
-        auto sender_user_id = UserId{Random::fast(1, 1000)};
+        auto sender_user_id = UserId(static_cast<int64>(Random::fast(1, 1000)));
         auto random_id = i + 1;
         auto ttl_expires_at = 0;
         auto data = BufferSlice(Random::fast(100, 299));
@@ -67,7 +67,7 @@ class MessagesDbBench : public Benchmark {
       }
     }
   }
-  void tear_down() override {
+  void tear_down() final {
     scheduler_->run_main(0.1);
     {
       auto guard = scheduler_->get_main_guard();
@@ -94,7 +94,7 @@ class MessagesDbBench : public Benchmark {
     auto guard = scheduler_->get_main_guard();
 
     string sql_db_name = "testdb.sqlite";
-    sql_connection_ = std::make_shared<SqliteConnectionSafe>(sql_db_name);
+    sql_connection_ = std::make_shared<SqliteConnectionSafe>(sql_db_name, DbKey::empty());
     auto &db = sql_connection_->get();
     TRY_STATUS(init_db(db));
 
