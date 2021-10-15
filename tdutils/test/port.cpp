@@ -145,7 +145,7 @@ TEST(Port, Writev) {
   ASSERT_EQ(expected_content, content);
 }
 
-#if TD_PORT_POSIX && !TD_THREAD_UNSUPPORTED
+#if TD_PORT_POSIX && !TD_THREAD_UNSUPPORTED &&!__vita__
 
 static std::mutex m;
 static td::vector<td::string> ptrs;

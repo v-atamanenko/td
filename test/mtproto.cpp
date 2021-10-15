@@ -109,7 +109,11 @@ TEST(Mtproto, GetHostByNameActor) {
       actors.push_back(std::move(actor));
 
       for (auto host : hosts) {
+#ifndef __vita__
         for (auto prefer_ipv6 : {false, true}) {
+#else
+        for (auto prefer_ipv6 : {false, false}) {
+#endif
           bool allow_ok = host.size() > 2 && host[1] != '[';
           bool allow_both = host == "127.0.0.1." || host == "localhost" || (host == "москва.рф" && prefer_ipv6);
           bool allow_error = !allow_ok || allow_both;

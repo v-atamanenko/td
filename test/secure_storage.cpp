@@ -57,9 +57,15 @@ TEST(SecureStorage, simple) {
   }
 
   {
+    #ifndef __vita__
     std::string value_path = "value.txt";
     std::string encrypted_path = "encrypted.txt";
     std::string decrypted_path = "decrypted.txt";
+    #else
+    std::string value_path = "ux0:data/td_test/value.txt";
+    std::string encrypted_path = "ux0:data/td_test/encrypted.txt";
+    std::string decrypted_path = "ux0:data/td_test/decrypted.txt";
+    #endif
     td::unlink(value_path).ignore();
     td::unlink(encrypted_path).ignore();
     td::unlink(decrypted_path).ignore();

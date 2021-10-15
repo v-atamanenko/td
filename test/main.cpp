@@ -15,11 +15,84 @@
 #include <emscripten.h>
 #endif
 
+#ifdef __vita__
+#include <psp2/kernel/processmgr.h>
+#include <psp2/sysmodule.h>
+#include <psp2/kernel/threadmgr.h>
+#include <psp2/libssl.h>
+#include <psp2/net/http.h>
+#include <psp2/net/net.h>
+#include <psp2/net/netctl.h>
+#endif
+
+#ifdef __vita__
+int _newlib_heap_size_user = 130 * 1024 * 1024;
+#endif
+
 int main(int argc, char **argv) {
+#ifdef __vita__
+  //TODO: mkdir ux0:data/td_test if not exists
+  SceNetInitParam param;
+  static char memory[8 * 1024 * 1024];
+  int ret;
+
+  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+  if (ret < 0) {
+  printf("AAAA %x\n", ret);
+    return 1;
+  }
+
+  param.memory = memory;
+  param.size = sizeof(memory);
+  param.flags = 0;
+  ret = sceNetInit(&param);
+  if (ret < 0) {
+    printf("BBBB %x\n", ret);
+    return 1;
+  }
+
+  ret = sceNetCtlInit();
+  if (ret < 0) {
+    printf("CCCC %x\n", ret);
+    return 1;
+  }
+
+  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_HTTP);
+  if (ret < 0) {
+    printf("DDDD %x\n", ret);
+    return 1;
+  }
+
+  ret = sceHttpInit(1024 * 1024);
+  if (ret < 0) {
+    printf("EEEE %x\n", ret);
+    return 1;
+  }
+
+  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_HTTPS);
+  if (ret < 0) {
+    printf("FFFF %x\n", ret);
+    return 1;
+  }
+
+  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_SSL);
+  if (ret < 0) {
+    printf("GGGG %x\n", ret);
+    return 1;
+  }
+
+  ret = sceSslInit(1024 * 1024);
+  if (ret < 0) {
+    printf("HHHH %x\n", ret);
+    return 1;
+  }
+
+  printf("network initialized\n");
+#endif
   td::init_openssl_threads();
 
   td::TestsRunner &runner = td::TestsRunner::get_default();
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG));
 
   td::OptionParser options;
   options.add_option('f', "filter", "Run only specified tests",
@@ -43,6 +116,14 @@ int main(int argc, char **argv) {
       10, 0);
 #else
   runner.run_all();
+#endif
+
+#ifdef __vita__
+  sceSysmoduleUnloadModule(SCE_SYSMODULE_SSL);
+  sceSysmoduleUnloadModule(SCE_SYSMODULE_HTTPS);
+  sceSysmoduleUnloadModule(SCE_SYSMODULE_HTTP);
+  sceSysmoduleUnloadModule(SCE_SYSMODULE_NET);
+  sceKernelExitProcess(0);
 #endif
   return 0;
 }

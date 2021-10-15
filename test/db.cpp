@@ -46,7 +46,11 @@ static typename ContainerT::value_type &rand_elem(ContainerT &cont) {
 }
 
 TEST(DB, binlog_encryption_bug) {
+#ifndef __vita__
   CSlice binlog_name = "test_binlog";
+#else
+  CSlice binlog_name = "ux0:data/td_test/test_binlog";
+#endif
   Binlog::destroy(binlog_name).ignore();
 
   auto cucumber = DbKey::password("cucu'\"mb er");
@@ -68,7 +72,11 @@ TEST(DB, binlog_encryption_bug) {
 }
 
 TEST(DB, binlog_encryption) {
+#ifndef __vita__
   CSlice binlog_name = "test_binlog";
+#else
+  CSlice binlog_name = "ux0:data/td_test/test_binlog";
+#endif
   Binlog::destroy(binlog_name).ignore();
 
   auto hello = DbKey::raw_key(std::string(32, 'A'));
@@ -137,6 +145,10 @@ TEST(DB, binlog_encryption) {
 };
 
 TEST(DB, sqlite_lfs) {
+  #if __vita__
+    return; // Sqlite is not supported yet.
+  #endif
+
   string path = "test_sqlite_db";
   SqliteDb::destroy(path).ignore();
   SqliteDb db;
@@ -146,6 +158,10 @@ TEST(DB, sqlite_lfs) {
 }
 
 TEST(DB, sqlite_encryption) {
+  #if __vita__
+    return; // Sqlite is not supported yet.
+  #endif
+
   string path = "test_sqlite_db";
   SqliteDb::destroy(path).ignore();
 
@@ -199,6 +215,10 @@ TEST(DB, sqlite_encryption) {
 }
 
 TEST(DB, sqlite_encryption_migrate_v3) {
+  #if __vita__
+    return; // Sqlite is not supported yet.
+  #endif
+
   string path = "test_sqlite_db";
   SqliteDb::destroy(path).ignore();
   auto cucumber = DbKey::password("cucumber");
@@ -226,6 +246,10 @@ TEST(DB, sqlite_encryption_migrate_v3) {
 }
 
 TEST(DB, sqlite_encryption_migrate_v4) {
+  #if __vita__
+    return; // Sqlite is not supported yet.
+  #endif
+
   string path = "test_sqlite_db";
   SqliteDb::destroy(path).ignore();
   auto cucumber = DbKey::password("cucu'\"mb er");
@@ -340,6 +364,10 @@ class BaselineKV {
 };
 
 TEST(DB, key_value) {
+  #if __vita__
+    return; // Sqlite is not supported yet.
+  #endif
+
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   std::vector<std::string> keys;
   std::vector<std::string> values;
@@ -512,6 +540,10 @@ TEST(DB, thread_key_value) {
 #endif
 
 TEST(DB, persistent_key_value) {
+  #if __vita__
+    return; // Sqlite is not supported yet.
+  #endif
+
   using KeyValue = BinlogKeyValue<ConcurrentBinlog>;
   // using KeyValue = PersistentKeyValue;
   // using KeyValue = SqliteKV;
