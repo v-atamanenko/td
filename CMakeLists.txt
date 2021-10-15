@@ -979,10 +979,8 @@ install(FILES "TdConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/TdConfigVersion.cmak
 
 # Add SOVERSION to shared libraries
 set_property(TARGET tdclient PROPERTY SOVERSION "${TDLib_VERSION}")
-<<<<<<< HEAD
+
 if(NOT __vita__)
-=======
 set_property(TARGET tdapi PROPERTY SOVERSION "${TDLib_VERSION}")
->>>>>>> e78a5fbecf6e561a99589ec5cec16bb2c486524c
 set_property(TARGET tdjson PROPERTY SOVERSION "${TDLib_VERSION}")
 endif()
