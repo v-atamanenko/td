@@ -16,7 +16,7 @@
 
 namespace td {
 
-class DelayDispatcher : public Actor {
+class DelayDispatcher final : public Actor {
  public:
   DelayDispatcher(double default_delay, ActorShared<> parent)
       : default_delay_(default_delay), parent_(std::move(parent)) {
@@ -38,8 +38,8 @@ class DelayDispatcher : public Actor {
   double default_delay_;
   ActorShared<> parent_;
 
-  void loop() override;
-  void tear_down() override;
+  void loop() final;
+  void tear_down() final;
 };
 
 }  // namespace td

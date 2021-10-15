@@ -16,7 +16,7 @@
 namespace td {
 
 #if TD_HAVE_OPENSSL
-class AesCtrByteFlow : public ByteFlowInplaceBase {
+class AesCtrByteFlow final : public ByteFlowInplaceBase {
  public:
   void init(const UInt256 &key, const UInt128 &iv) {
     state_.init(as_slice(key), as_slice(iv));
@@ -27,7 +27,7 @@ class AesCtrByteFlow : public ByteFlowInplaceBase {
   AesCtrState move_aes_ctr_state() {
     return std::move(state_);
   }
-  bool loop() override {
+  bool loop() final {
     bool result = false;
     auto ready = input_->prepare_read();
     if (!ready.empty()) {

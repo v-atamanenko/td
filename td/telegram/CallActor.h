@@ -6,16 +6,15 @@
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
-#include "td/mtproto/DhHandshake.h"
-
 #include "td/telegram/CallDiscardReason.h"
 #include "td/telegram/CallId.h"
 #include "td/telegram/DhConfig.h"
 #include "td/telegram/net/NetQuery.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
+
+#include "td/mtproto/DhHandshake.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
@@ -89,7 +88,7 @@ struct CallState {
   tl_object_ptr<td_api::CallState> get_call_state_object() const;
 };
 
-class CallActor : public NetQueryCallback {
+class CallActor final : public NetQueryCallback {
  public:
   CallActor(CallId call_id, ActorShared<> parent, Promise<int64> promise);
 
@@ -110,7 +109,7 @@ class CallActor : public NetQueryCallback {
   ActorShared<> parent_;
   Promise<int64> call_id_promise_;
 
-  DhHandshake dh_handshake_;
+  mtproto::DhHandshake dh_handshake_;
   std::shared_ptr<DhConfig> dh_config_;
   bool dh_config_query_sent_{false};
   bool dh_config_ready_{false};
@@ -142,8 +141,8 @@ class CallActor : public NetQueryCallback {
   bool is_call_id_inited_{false};
   bool has_notification_{false};
   int64 call_access_hash_{0};
-  int32 call_admin_id_{0};
-  int32 call_participant_id_{0};
+  UserId call_admin_user_id_;
+  // UserId call_participant_user_id_;
 
   CallState call_state_;
   bool call_state_need_flush_{false};
@@ -191,15 +190,15 @@ class CallActor : public NetQueryCallback {
 
   static vector<string> get_emojis_fingerprint(const string &key, const string &g_a);
 
-  void start_up() override;
-  void loop() override;
+  void start_up() final;
+  void loop() final;
 
   Container<Promise<NetQueryPtr>> container_;
-  void on_result(NetQueryPtr query) override;
+  void on_result(NetQueryPtr query) final;
   void send_with_promise(NetQueryPtr query, Promise<NetQueryPtr> promise);
 
-  void timeout_expired() override;
-  void hangup() override;
+  void timeout_expired() final;
+  void hangup() final;
 
   void on_error(Status status);
 };

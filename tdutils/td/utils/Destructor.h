@@ -24,7 +24,7 @@ class Destructor {
 };
 
 template <class F>
-class LambdaDestructor : public Destructor {
+class LambdaDestructor final : public Destructor {
  public:
   explicit LambdaDestructor(F &&f) : f_(std::move(f)) {
   }
@@ -32,7 +32,7 @@ class LambdaDestructor : public Destructor {
   LambdaDestructor &operator=(const LambdaDestructor &other) = delete;
   LambdaDestructor(LambdaDestructor &&other) = default;
   LambdaDestructor &operator=(LambdaDestructor &&other) = default;
-  ~LambdaDestructor() override {
+  ~LambdaDestructor() final {
     f_();
   }
 

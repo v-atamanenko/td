@@ -12,7 +12,6 @@
 #include "td/utils/common.h"
 #include "td/utils/crypto.h"
 #include "td/utils/misc.h"
-#include "td/utils/Random.h"
 #include "td/utils/ScopeGuard.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
@@ -27,6 +26,7 @@
 #endif
 
 namespace td {
+namespace mtproto {
 
 RSA::RSA(BigNum n, BigNum e) : n_(std::move(n)), e_(std::move(e)) {
 }
@@ -127,27 +127,22 @@ size_t RSA::size() const {
   return 256;
 }
 
-size_t RSA::encrypt(unsigned char *from, size_t from_len, size_t max_from_len, unsigned char *to, size_t to_len) const {
-  CHECK(from_len > 0 && from_len <= 2550);
-  size_t pad = (25500 - from_len - 32) % 255 + 32;
-  size_t chunks = (from_len + pad) / 255;
+bool RSA::encrypt(Slice from, MutableSlice to) const {
+  CHECK(from.size() == 256)
+  CHECK(to.size() == 256)
   int bits = n_.get_num_bits();
   CHECK(bits >= 2041 && bits <= 2048);
-  CHECK(chunks * 255 == from_len + pad);
-  CHECK(from_len + pad <= max_from_len);
-  CHECK(chunks * 256 <= to_len);
-  Random::secure_bytes(from + from_len, pad);
 
-  size_t result = chunks * 256;
+  BigNum x = BigNum::from_binary(from);
+  if (BigNum::compare(x, n_) >= 0) {
+    return false;
+  }
+
   BigNumContext ctx;
   BigNum y;
-  while (chunks-- > 0) {
-    BigNum x = BigNum::from_binary(Slice(from, 255));
-    BigNum::mod_exp(y, x, e_, n_, ctx);
-    MutableSlice(to, 256).copy_from(y.to_binary(256));
-    to += 256;
-  }
-  return result;
+  BigNum::mod_exp(y, x, e_, n_, ctx);
+  to.copy_from(y.to_binary(256));
+  return true;
 }
 
 void RSA::decrypt_signature(Slice from, MutableSlice to) const {
@@ -159,4 +154,5 @@ void RSA::decrypt_signature(Slice from, MutableSlice to) const {
   to.copy_from(y.to_binary(256));
 }
 
+}  // namespace mtproto
 }  // namespace td

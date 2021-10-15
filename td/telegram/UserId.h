@@ -6,6 +6,8 @@
 //
 #pragma once
 
+#include "td/telegram/Version.h"
+
 #include "td/utils/common.h"
 #include "td/utils/StringBuilder.h"
 
@@ -15,17 +17,19 @@
 namespace td {
 
 class UserId {
-  int32 id = 0;
+  int64 id = 0;
 
  public:
+  static constexpr int64 MAX_USER_ID = (1ll << 40) - 1;
+
   UserId() = default;
 
-  explicit UserId(int32 user_id) : id(user_id) {
+  explicit UserId(int64 user_id) : id(user_id) {
   }
-  template <class T, typename = std::enable_if_t<std::is_convertible<T, int32>::value>>
+  template <class T, typename = std::enable_if_t<std::is_convertible<T, int64>::value>>
   UserId(T user_id) = delete;
 
-  static vector<UserId> get_user_ids(const vector<int32> &input_user_ids) {
+  static vector<UserId> get_user_ids(const vector<int64> &input_user_ids) {
     vector<UserId> user_ids;
     user_ids.reserve(input_user_ids.size());
     for (auto &input_user_id : input_user_ids) {
@@ -34,8 +38,8 @@ class UserId {
     return user_ids;
   }
 
-  static vector<int32> get_input_user_ids(const vector<UserId> &user_ids) {
-    vector<int32> input_user_ids;
+  static vector<int64> get_input_user_ids(const vector<UserId> &user_ids) {
+    vector<int64> input_user_ids;
     input_user_ids.reserve(user_ids.size());
     for (auto &user_id : user_ids) {
       input_user_ids.emplace_back(user_id.get());
@@ -44,10 +48,10 @@ class UserId {
   }
 
   bool is_valid() const {
-    return id > 0;
+    return 0 < id && id <= MAX_USER_ID;
   }
 
-  int32 get() const {
+  int64 get() const {
     return id;
   }
 
@@ -61,18 +65,22 @@ class UserId {
 
   template <class StorerT>
   void store(StorerT &storer) const {
-    storer.store_int(id);
+    storer.store_long(id);
   }
 
   template <class ParserT>
   void parse(ParserT &parser) {
-    id = parser.fetch_int();
+    if (parser.version() >= static_cast<int32>(Version::Support64BitIds)) {
+      id = parser.fetch_long();
+    } else {
+      id = parser.fetch_int();
+    }
   }
 };
 
 struct UserIdHash {
   std::size_t operator()(UserId user_id) const {
-    return std::hash<int32>()(user_id.get());
+    return std::hash<int64>()(user_id.get());
   }
 };
 

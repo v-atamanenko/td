@@ -41,7 +41,7 @@
 namespace td {
 namespace detail {
 #if TD_PORT_WINDOWS
-class SocketFdImpl : private Iocp::Callback {
+class SocketFdImpl final : private Iocp::Callback {
  public:
   explicit SocketFdImpl(NativeFd native_fd) : info(std::move(native_fd)) {
     VLOG(fd) << get_native_fd() << " create from native_fd";
@@ -78,6 +78,12 @@ class SocketFdImpl : private Iocp::Callback {
   }
 
   void close() {
+    if (!is_write_waiting_) {
+      VLOG(fd) << get_native_fd() << " will close after ongoing write";
+      auto lock = lock_.lock();
+      need_close_after_write_ = true;
+      return;
+    }
     notify_iocp_close();
   }
 
@@ -160,6 +166,7 @@ class SocketFdImpl : private Iocp::Callback {
 
   std::atomic<int> refcnt_{1};
   bool close_flag_{false};
+  bool need_close_after_write_{false};
 
   bool is_connected_{false};
   bool is_read_active_{false};
@@ -188,7 +195,7 @@ class SocketFdImpl : private Iocp::Callback {
   void loop_read() {
     CHECK(is_connected_);
     CHECK(!is_read_active_);
-    if (close_flag_) {
+    if (close_flag_ || need_close_after_write_) {
       return;
     }
     std::memset(&read_overlapped_, 0, sizeof(read_overlapped_));
@@ -216,6 +223,9 @@ class SocketFdImpl : private Iocp::Callback {
       to_write = output_reader_.prepare_read();
       if (to_write.empty()) {
         is_write_waiting_ = true;
+        if (need_close_after_write_) {
+          notify_iocp_close();
+        }
         return;
       }
     }
@@ -244,7 +254,7 @@ class SocketFdImpl : private Iocp::Callback {
     }
   }
 
-  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) override {
+  void on_iocp(Result<size_t> r_size, WSAOVERLAPPED *overlapped) final {
     // called from other thread
     if (dec_refcnt() || close_flag_) {
       VLOG(fd) << "Ignore IOCP (socket is closing)";
@@ -612,7 +622,7 @@ Result<SocketFd> SocketFd::from_native_fd(NativeFd fd) {
 }
 
 Result<SocketFd> SocketFd::open(const IPAddress &address) {
-#if TD_EXPERIMENTAL_WATCH_OS
+#if TD_DARWIN_WATCH_OS
   return SocketFd{};
 #endif
 

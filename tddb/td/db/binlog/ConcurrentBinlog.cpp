@@ -15,7 +15,7 @@
 
 namespace td {
 namespace detail {
-class BinlogActor : public Actor {
+class BinlogActor final : public Actor {
  public:
   BinlogActor(unique_ptr<Binlog> binlog, uint64 seq_no) : binlog_(std::move(binlog)), processor_(seq_no) {
   }
@@ -142,7 +142,7 @@ class BinlogActor : public Actor {
     }
   }
 
-  void timeout_expired() override {
+  void timeout_expired() final {
     bool need_sync = lazy_sync_flag_ || force_sync_flag_;
     lazy_sync_flag_ = false;
     force_sync_flag_ = false;

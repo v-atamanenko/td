@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/FullMessageId.h"
 #include "td/telegram/InputGroupCallId.h"
@@ -37,6 +38,7 @@
 namespace td {
 
 struct Dependencies;
+class DialogAction;
 class Game;
 struct Photo;
 class Td;
@@ -107,7 +109,7 @@ bool can_have_input_media(const Td *td, const MessageContent *content);
 
 SecretInputMedia get_secret_input_media(const MessageContent *content, Td *td,
                                         tl_object_ptr<telegram_api::InputEncryptedFile> input_file,
-                                        BufferSlice thumbnail, int32 layer);
+                                        BufferSlice thumbnail);
 
 tl_object_ptr<telegram_api::InputMedia> get_input_media(const MessageContent *content, Td *td,
                                                         tl_object_ptr<telegram_api::InputFile> input_file,
@@ -133,6 +135,8 @@ int32 get_message_content_index_mask(const MessageContent *content, const Td *td
 
 MessageId get_message_content_pinned_message_id(const MessageContent *content);
 
+string get_message_content_theme_name(const MessageContent *content);
+
 FullMessageId get_message_content_replied_message_id(DialogId dialog_id, const MessageContent *content);
 
 std::pair<InputGroupCallId, bool> get_message_content_group_call_info(const MessageContent *content);
@@ -148,6 +152,8 @@ bool get_message_content_poll_is_closed(const Td *td, const MessageContent *cont
 bool has_message_content_web_page(const MessageContent *content);
 
 void remove_message_content_web_page(MessageContent *content);
+
+bool can_message_content_have_media_timestamp(const MessageContent *content);
 
 void set_message_content_poll_answer(Td *td, const MessageContent *content, FullMessageId full_message_id,
                                      vector<int32> &&option_ids, Promise<Unit> &&promise);
@@ -174,7 +180,7 @@ void unregister_message_content(Td *td, const MessageContent *content, FullMessa
                                 const char *source);
 
 unique_ptr<MessageContent> get_secret_message_content(
-    Td *td, string message_text, tl_object_ptr<telegram_api::encryptedFile> file,
+    Td *td, string message_text, unique_ptr<EncryptedFile> file,
     tl_object_ptr<secret_api::DecryptedMessageMedia> &&media,
     vector<tl_object_ptr<secret_api::MessageEntity>> &&secret_entities, DialogId owner_dialog_id,
     MultiPromiseActor &load_data_multipromise);
@@ -195,13 +201,18 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
 
 tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageContent *content, Td *td,
                                                                  DialogId dialog_id, int32 message_date,
-                                                                 bool is_content_secret);
+                                                                 bool is_content_secret, bool skip_bot_commands,
+                                                                 int32 max_media_timestamp);
+
+FormattedText *get_message_content_text_mutable(MessageContent *content);
 
 const FormattedText *get_message_content_text(const MessageContent *content);
 
 const FormattedText *get_message_content_caption(const MessageContent *content);
 
 int32 get_message_content_duration(const MessageContent *content, const Td *td);
+
+int32 get_message_content_media_duration(const MessageContent *content, const Td *td);
 
 FileId get_message_content_upload_file_id(const MessageContent *content);
 
@@ -214,6 +225,12 @@ FileId get_message_content_thumbnail_file_id(const MessageContent *content, cons
 vector<FileId> get_message_content_file_ids(const MessageContent *content, const Td *td);
 
 string get_message_content_search_text(const Td *td, const MessageContent *content);
+
+void get_message_content_animated_emoji_click_sticker(const MessageContent *content, FullMessageId full_message_id,
+                                                      Td *td, Promise<td_api::object_ptr<td_api::sticker>> &&promise);
+
+void on_message_content_animated_emoji_clicked(const MessageContent *content, FullMessageId full_message_id, Td *td,
+                                               Slice emoji, string data);
 
 bool need_reget_message_content(const MessageContent *content);
 
@@ -228,6 +245,8 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
 void on_sent_message_content(Td *td, const MessageContent *content);
 
 StickerSetId add_sticker_set(Td *td, tl_object_ptr<telegram_api::InputStickerSet> &&input_sticker_set);
+
+bool is_unsent_animated_emoji_click(Td *td, DialogId dialog_id, const DialogAction &action);
 
 void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date);
 

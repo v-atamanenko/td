@@ -6,6 +6,8 @@
 //
 #include "td/telegram/net/NetQueryDispatcher.h"
 
+#include "td/telegram/ConfigShared.h"
+#include "td/telegram/Global.h"
 #include "td/telegram/net/AuthDataShared.h"
 #include "td/telegram/net/DcAuthManager.h"
 #include "td/telegram/net/NetQuery.h"
@@ -13,9 +15,6 @@
 #include "td/telegram/net/PublicRsaKeyShared.h"
 #include "td/telegram/net/PublicRsaKeyWatchdog.h"
 #include "td/telegram/net/SessionMultiProxy.h"
-
-#include "td/telegram/ConfigShared.h"
-#include "td/telegram/Global.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
@@ -34,22 +33,20 @@ void NetQueryDispatcher::complete_net_query(NetQueryPtr net_query) {
   auto callback = net_query->move_callback();
   if (callback.empty()) {
     net_query->debug("sent to td (no callback)");
-    send_closure(G()->td(), &NetQueryCallback::on_result, std::move(net_query));
+    send_closure_later(G()->td(), &Td::on_result, std::move(net_query));
   } else {
     net_query->debug("sent to callback", true);
-    send_closure(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
+    send_closure_later(std::move(callback), &NetQueryCallback::on_result, std::move(net_query));
   }
 }
 
 void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
   // net_query->debug("dispatch");
   if (stop_flag_.load(std::memory_order_relaxed)) {
-    if (net_query->id() != 0) {
-      net_query->set_error(Status::Error(500, "Request aborted"));
-    }
+    net_query->set_error(Global::request_aborted_error());
     return complete_net_query(std::move(net_query));
   }
-  if (net_query->id() != 0 && G()->shared_config().get_option_boolean("test_flood_wait")) {
+  if (G()->shared_config().get_option_boolean("test_flood_wait")) {
     net_query->set_error(Status::Error(429, "Too Many Requests: retry after 10"));
     return complete_net_query(std::move(net_query));
   }

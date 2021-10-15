@@ -29,6 +29,7 @@
 #include "td/telegram/StateManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/TdParameters.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/mtproto/AuthKey.h"
@@ -67,7 +68,7 @@ namespace td {
 
 int VERBOSITY_NAME(notifications) = VERBOSITY_NAME(INFO);
 
-class SetContactSignUpNotificationQuery : public Td::ResultHandler {
+class SetContactSignUpNotificationQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -78,7 +79,7 @@ class SetContactSignUpNotificationQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::account_setContactSignUpNotification(is_disabled)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::account_setContactSignUpNotification>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -87,7 +88,7 @@ class SetContactSignUpNotificationQuery : public Td::ResultHandler {
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     if (!G()->is_expected_error(status)) {
       LOG(ERROR) << "Receive error for set contact sign up notification: " << status;
     }
@@ -95,7 +96,7 @@ class SetContactSignUpNotificationQuery : public Td::ResultHandler {
   }
 };
 
-class GetContactSignUpNotificationQuery : public Td::ResultHandler {
+class GetContactSignUpNotificationQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -106,7 +107,7 @@ class GetContactSignUpNotificationQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::account_getContactSignUpNotification()));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::account_getContactSignUpNotification>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -116,7 +117,7 @@ class GetContactSignUpNotificationQuery : public Td::ResultHandler {
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     if (!G()->is_expected_error(status)) {
       LOG(ERROR) << "Receive error for get contact sign up notification: " << status;
     }
@@ -288,11 +289,11 @@ void NotificationManager::init() {
     }
   }
 
-  class StateCallback : public StateManager::Callback {
+  class StateCallback final : public StateManager::Callback {
    public:
     explicit StateCallback(ActorId<NotificationManager> parent) : parent_(std::move(parent)) {
     }
-    bool on_online(bool is_online) override {
+    bool on_online(bool is_online) final {
       if (is_online) {
         send_closure(parent_, &NotificationManager::flush_all_pending_notifications);
       }
@@ -642,7 +643,7 @@ void NotificationManager::add_notifications_to_group_begin(NotificationGroups::i
       final_group_key.last_notification_date = notification.date;
     }
   }
-  CHECK(final_group_key.last_notification_date != 0);
+  LOG_CHECK(final_group_key.last_notification_date != 0) << final_group_key << ' ' << *group_it << ' ' << notifications;
 
   bool is_position_changed = final_group_key.last_notification_date != group_key.last_notification_date;
 
@@ -1059,7 +1060,7 @@ void NotificationManager::flush_pending_updates(int32 group_id, const char *sour
   // all edits of notifications from edited_notification_ids
   // deletions of a notification can be removed, only if the addition of the notification has already been deleted
   // deletions of all unkept notifications can be moved to the first updateNotificationGroup
-  // after that at every moment there is no more active notifications than in the last moment,
+  // after that at every moment there are no more active notifications than in the last moment,
   // so left deletions after add/edit can be safely removed and following additions can be treated as edits
   // we still need to keep deletions coming first, because we can't have 2 consequent additions
   // from all additions of the same notification, we need to preserve the first, because it can be with sound,
@@ -2805,6 +2806,9 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       if (loc_key == "MESSAGE_NOTEXT") {
         return "MESSAGE";
       }
+      if (loc_key == "MESSAGE_NOTHEME") {
+        return "MESSAGE_CHAT_CHANGE_THEME";
+      }
       if (loc_key == "PINNED_INVOICE") {
         return "PINNED_MESSAGE_INVOICE";
       }
@@ -2873,6 +2877,9 @@ string NotificationManager::convert_loc_key(const string &loc_key) {
       }
       if (loc_key == "CHAT_PHOTO_EDITED") {
         return "MESSAGE_CHAT_CHANGE_PHOTO";
+      }
+      if (loc_key == "MESSAGE_THEME") {
+        return "MESSAGE_CHAT_CHANGE_THEME";
       }
       break;
     case 'U':
@@ -3027,7 +3034,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
 
   if (loc_key == "SESSION_REVOKE") {
     if (was_encrypted) {
-      send_closure(td_->auth_manager_actor_, &AuthManager::on_authorization_lost);
+      send_closure(td_->auth_manager_actor_, &AuthManager::on_authorization_lost, "SESSION_REVOKE");
     } else {
       LOG(ERROR) << "Receive unencrypted SESSION_REVOKE push notification";
     }
@@ -3051,7 +3058,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
 
   DialogId dialog_id;
   if (has_json_object_field(custom, "from_id")) {
-    TRY_RESULT(user_id_int, get_json_object_int_field(custom, "from_id"));
+    TRY_RESULT(user_id_int, get_json_object_long_field(custom, "from_id"));
     UserId user_id(user_id_int);
     if (!user_id.is_valid()) {
       return Status::Error("Receive invalid user_id");
@@ -3059,7 +3066,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     dialog_id = DialogId(user_id);
   }
   if (has_json_object_field(custom, "chat_id")) {
-    TRY_RESULT(chat_id_int, get_json_object_int_field(custom, "chat_id"));
+    TRY_RESULT(chat_id_int, get_json_object_long_field(custom, "chat_id"));
     ChatId chat_id(chat_id_int);
     if (!chat_id.is_valid()) {
       return Status::Error("Receive invalid chat_id");
@@ -3067,7 +3074,7 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
     dialog_id = DialogId(chat_id);
   }
   if (has_json_object_field(custom, "channel_id")) {
-    TRY_RESULT(channel_id_int, get_json_object_int_field(custom, "channel_id"));
+    TRY_RESULT(channel_id_int, get_json_object_long_field(custom, "channel_id"));
     ChannelId channel_id(channel_id_int);
     if (!channel_id.is_valid()) {
       return Status::Error("Receive invalid channel_id");
@@ -3141,25 +3148,27 @@ Status NotificationManager::process_push_notification_payload(string payload, bo
   UserId sender_user_id;
   DialogId sender_dialog_id;
   if (has_json_object_field(custom, "chat_from_broadcast_id")) {
-    TRY_RESULT(sender_channel_id_int, get_json_object_int_field(custom, "chat_from_broadcast_id"));
+    TRY_RESULT(sender_channel_id_int, get_json_object_long_field(custom, "chat_from_broadcast_id"));
     sender_dialog_id = DialogId(ChannelId(sender_channel_id_int));
     if (!sender_dialog_id.is_valid()) {
       return Status::Error("Receive invalid chat_from_broadcast_id");
     }
   } else if (has_json_object_field(custom, "chat_from_group_id")) {
-    TRY_RESULT(sender_channel_id_int, get_json_object_int_field(custom, "chat_from_group_id"));
+    TRY_RESULT(sender_channel_id_int, get_json_object_long_field(custom, "chat_from_group_id"));
     sender_dialog_id = DialogId(ChannelId(sender_channel_id_int));
     if (!sender_dialog_id.is_valid()) {
       return Status::Error("Receive invalid chat_from_group_id");
     }
   } else if (has_json_object_field(custom, "chat_from_id")) {
-    TRY_RESULT(sender_user_id_int, get_json_object_int_field(custom, "chat_from_id"));
+    TRY_RESULT(sender_user_id_int, get_json_object_long_field(custom, "chat_from_id"));
     sender_user_id = UserId(sender_user_id_int);
     if (!sender_user_id.is_valid()) {
       return Status::Error("Receive invalid chat_from_id");
     }
   } else if (dialog_id.get_type() == DialogType::User) {
     sender_user_id = dialog_id.get_user_id();
+  } else if (dialog_id.get_type() == DialogType::Channel) {
+    sender_dialog_id = dialog_id;
   }
 
   TRY_RESULT(contains_mention_int, get_json_object_int_field(custom, "mention"));
@@ -3831,7 +3840,7 @@ Result<int64> NotificationManager::get_push_receiver_id(string payload) {
       if (r_user_id.ok() <= 0) {
         return Status::Error(400, PSLICE() << "Receive wrong user_id " << user_id_str);
       }
-      return static_cast<int64>(r_user_id.ok());
+      return r_user_id.ok();
     }
   }
 

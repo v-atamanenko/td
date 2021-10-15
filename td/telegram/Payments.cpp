@@ -31,7 +31,7 @@
 
 namespace td {
 
-class SetBotShippingAnswerQuery : public Td::ResultHandler {
+class SetBotShippingAnswerQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -51,7 +51,7 @@ class SetBotShippingAnswerQuery : public Td::ResultHandler {
         flags, shipping_query_id, error_message, std::move(shipping_options))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_setBotShippingResults>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -64,12 +64,12 @@ class SetBotShippingAnswerQuery : public Td::ResultHandler {
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
 
-class SetBotPreCheckoutAnswerQuery : public Td::ResultHandler {
+class SetBotPreCheckoutAnswerQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -88,7 +88,7 @@ class SetBotPreCheckoutAnswerQuery : public Td::ResultHandler {
         flags, false /*ignored*/, pre_checkout_query_id, error_message)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_setBotPrecheckoutResults>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -101,7 +101,7 @@ class SetBotPreCheckoutAnswerQuery : public Td::ResultHandler {
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -259,7 +259,7 @@ static tl_object_ptr<td_api::savedCredentials> convert_saved_credentials(
                                                   std::move(saved_credentials->title_));
 }
 
-class GetPaymentFormQuery : public Td::ResultHandler {
+class GetPaymentFormQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<td_api::paymentForm>> promise_;
   DialogId dialog_id_;
 
@@ -283,7 +283,7 @@ class GetPaymentFormQuery : public Td::ResultHandler {
         flags, std::move(input_peer), server_message_id.get(), std::move(theme_parameters))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_getPaymentForm>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -316,13 +316,13 @@ class GetPaymentFormQuery : public Td::ResultHandler {
         convert_saved_credentials(std::move(payment_form->saved_credentials_)), can_save_credentials, need_password));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     td->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPaymentFormQuery");
     promise_.set_error(std::move(status));
   }
 };
 
-class ValidateRequestedInfoQuery : public Td::ResultHandler {
+class ValidateRequestedInfoQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<td_api::validatedOrderInfo>> promise_;
   DialogId dialog_id_;
 
@@ -351,7 +351,7 @@ class ValidateRequestedInfoQuery : public Td::ResultHandler {
         flags, false /*ignored*/, std::move(input_peer), server_message_id.get(), std::move(requested_info))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_validateRequestedInfo>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -365,13 +365,13 @@ class ValidateRequestedInfoQuery : public Td::ResultHandler {
         transform(std::move(validated_order_info->shipping_options_), convert_shipping_option)));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     td->messages_manager_->on_get_dialog_error(dialog_id_, status, "ValidateRequestedInfoQuery");
     promise_.set_error(std::move(status));
   }
 };
 
-class SendPaymentFormQuery : public Td::ResultHandler {
+class SendPaymentFormQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<td_api::paymentResult>> promise_;
   DialogId dialog_id_;
 
@@ -406,7 +406,7 @@ class SendPaymentFormQuery : public Td::ResultHandler {
         std::move(input_credentials), tip_amount)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_sendPaymentForm>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -434,13 +434,13 @@ class SendPaymentFormQuery : public Td::ResultHandler {
     }
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     td->messages_manager_->on_get_dialog_error(dialog_id_, status, "SendPaymentFormQuery");
     promise_.set_error(std::move(status));
   }
 };
 
-class GetPaymentReceiptQuery : public Td::ResultHandler {
+class GetPaymentReceiptQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<td_api::paymentReceipt>> promise_;
   DialogId dialog_id_;
 
@@ -460,7 +460,7 @@ class GetPaymentReceiptQuery : public Td::ResultHandler {
         telegram_api::payments_getPaymentReceipt(std::move(input_peer), server_message_id.get())));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_getPaymentReceipt>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -492,13 +492,13 @@ class GetPaymentReceiptQuery : public Td::ResultHandler {
         payment_receipt->tip_amount_));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     td->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPaymentReceiptQuery");
     promise_.set_error(std::move(status));
   }
 };
 
-class GetSavedInfoQuery : public Td::ResultHandler {
+class GetSavedInfoQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<td_api::orderInfo>> promise_;
 
  public:
@@ -509,7 +509,7 @@ class GetSavedInfoQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::payments_getSavedInfo()));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_getSavedInfo>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -520,12 +520,12 @@ class GetSavedInfoQuery : public Td::ResultHandler {
     promise_.set_value(convert_order_info(std::move(saved_info->saved_info_)));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
 
-class ClearSavedInfoQuery : public Td::ResultHandler {
+class ClearSavedInfoQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -545,7 +545,7 @@ class ClearSavedInfoQuery : public Td::ResultHandler {
         telegram_api::payments_clearSavedInfo(flags, false /*ignored*/, false /*ignored*/)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_clearSavedInfo>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -554,12 +554,12 @@ class ClearSavedInfoQuery : public Td::ResultHandler {
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
 
-class GetBankCardInfoQuery : public Td::ResultHandler {
+class GetBankCardInfoQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::bankCardInfo>> promise_;
 
  public:
@@ -572,7 +572,7 @@ class GetBankCardInfoQuery : public Td::ResultHandler {
                                                G()->get_webfile_dc_id()));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::payments_getBankCardData>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -585,7 +585,7 @@ class GetBankCardInfoQuery : public Td::ResultHandler {
     promise_.set_value(td_api::make_object<td_api::bankCardInfo>(response->title_, std::move(actions)));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -690,6 +690,9 @@ Result<InputInvoice> process_input_message_invoice(
   CHECK(input_message_content != nullptr);
   CHECK(input_message_content->get_id() == td_api::inputMessageInvoice::ID);
   auto input_invoice = move_tl_object_as<td_api::inputMessageInvoice>(input_message_content);
+  if (input_invoice->invoice_ == nullptr) {
+    return Status::Error(400, "Invoice must be non-empty");
+  }
 
   if (!clean_input_string(input_invoice->title_)) {
     return Status::Error(400, "Invoice title must be encoded in UTF-8");

@@ -26,7 +26,7 @@ char disable_linker_warning_about_empty_file_tdutils_test_log_cpp TD_UNUSED;
 
 #if !TD_THREAD_UNSUPPORTED
 template <class Log>
-class LogBenchmark : public td::Benchmark {
+class LogBenchmark final : public td::Benchmark {
  public:
   LogBenchmark(std::string name, int threads_n, bool test_full_logging, std::function<td::unique_ptr<Log>()> creator)
       : name_(std::move(name))
@@ -34,21 +34,21 @@ class LogBenchmark : public td::Benchmark {
       , test_full_logging_(test_full_logging)
       , creator_(std::move(creator)) {
   }
-  std::string get_description() const override {
+  std::string get_description() const final {
     return PSTRING() << name_ << " " << (test_full_logging_ ? "ERROR" : "PLAIN") << " "
                      << td::tag("threads_n", threads_n_);
   }
-  void start_up() override {
+  void start_up() final {
     log_ = creator_();
     threads_.resize(threads_n_);
   }
-  void tear_down() override {
+  void tear_down() final {
     for (auto path : log_->get_file_paths()) {
       td::unlink(path).ignore();
     }
     log_.reset();
   }
-  void run(int n) override {
+  void run(int n) final {
     auto old_log_interface = td::log_interface;
     td::log_interface = log_.get();
 
@@ -92,7 +92,7 @@ static void bench_log(std::string name, F &&f) {
       bench(LogBenchmark<typename decltype(f())::element_type>(name, threads_n, test_full_logging, f));
     }
   }
-};
+}
 
 TEST(Log, Bench) {
   bench_log("NullLog", [] { return td::make_unique<td::NullLog>(); });
@@ -116,7 +116,7 @@ TEST(Log, Bench) {
             [] { return td::TsFileLog::create("tmplog", std::numeric_limits<td::int64>::max(), false).move_as_ok(); });
 
   bench_log("FileLog + TsLog", [] {
-    class FileLog : public td::LogInterface {
+    class FileLog final : public td::LogInterface {
      public:
       FileLog() {
         file_log_.init("tmplog", std::numeric_limits<td::int64>::max(), false).ensure();
@@ -137,7 +137,7 @@ TEST(Log, Bench) {
   });
 
   bench_log("FileLog", [] {
-    class FileLog : public td::LogInterface {
+    class FileLog final : public td::LogInterface {
      public:
       FileLog() {
         file_log_.init("tmplog", std::numeric_limits<td::int64>::max(), false).ensure();

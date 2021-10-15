@@ -17,7 +17,7 @@
 
 namespace td {
 
-class GetTermsOfServiceUpdateQuery : public Td::ResultHandler {
+class GetTermsOfServiceUpdateQuery final : public Td::ResultHandler {
   Promise<std::pair<int32, TermsOfService>> promise_;
 
  public:
@@ -30,7 +30,7 @@ class GetTermsOfServiceUpdateQuery : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::help_getTermsOfServiceUpdate()));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::help_getTermsOfServiceUpdate>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -53,12 +53,12 @@ class GetTermsOfServiceUpdateQuery : public Td::ResultHandler {
     }
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
 
-class AcceptTermsOfServiceQuery : public Td::ResultHandler {
+class AcceptTermsOfServiceQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
  public:
@@ -70,7 +70,7 @@ class AcceptTermsOfServiceQuery : public Td::ResultHandler {
         telegram_api::make_object<telegram_api::dataJSON>(std::move(terms_of_service_id)))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::help_acceptTermsOfService>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -83,7 +83,7 @@ class AcceptTermsOfServiceQuery : public Td::ResultHandler {
     promise_.set_value(Unit());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -95,12 +95,12 @@ TermsOfService::TermsOfService(telegram_api::object_ptr<telegram_api::help_terms
 
   id_ = std::move(terms->id_->data_);
   auto entities = get_message_entities(nullptr, std::move(terms->entities_), "TermsOfService");
-  auto status = fix_formatted_text(terms->text_, entities, true, true, true, false);
+  auto status = fix_formatted_text(terms->text_, entities, true, true, true, true, false);
   if (status.is_error()) {
     if (!clean_input_string(terms->text_)) {
       terms->text_.clear();
     }
-    entities = find_entities(terms->text_, true);
+    entities = find_entities(terms->text_, true, true);
   }
   if (terms->text_.empty()) {
     id_.clear();

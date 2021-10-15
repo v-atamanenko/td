@@ -6,7 +6,7 @@
 //
 #include "data.h"
 
-#if TD_EXPERIMENTAL_WATCH_OS
+#if TD_DARWIN_WATCH_OS
 #include "td/net/DarwinHttp.h"
 #endif
 
@@ -45,8 +45,6 @@
 
 #include <condition_variable>
 #include <mutex>
-
-REGISTER_TESTS(http)
 
 using namespace td;
 
@@ -482,7 +480,7 @@ TEST(Http, gzip_bomb_with_limit) {
   ASSERT_TRUE(ok);
 }
 
-#if TD_EXPERIMENTAL_WATCH_OS
+#if TD_DARWIN_WATCH_OS
 struct Baton {
   std::mutex mutex;
   std::condition_variable cond;

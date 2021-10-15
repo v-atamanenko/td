@@ -302,6 +302,9 @@ inline void Scheduler::finish_migrate_actor(Actor *actor) {
 inline bool Scheduler::has_actor_timeout(const Actor *actor) const {
   return has_actor_timeout(actor->get_info());
 }
+inline double Scheduler::get_actor_timeout(const Actor *actor) const {
+  return get_actor_timeout(actor->get_info());
+}
 inline void Scheduler::set_actor_timeout_in(Actor *actor, double timeout) {
   set_actor_timeout_in(actor->get_info(), timeout);
 }
@@ -340,17 +343,6 @@ inline void Scheduler::wakeup() {
 #if !TD_THREAD_UNSUPPORTED && !TD_EVENTFD_UNSUPPORTED
   inbound_queue_->writer_put({});
 #endif
-}
-
-inline Timestamp Scheduler::run_events() {
-  Timestamp res;
-  VLOG(actor) << "Run events " << sched_id_ << " " << tag("pending", pending_events_.size())
-              << tag("actors", actor_count_);
-  do {
-    run_mailbox();
-    res = run_timeout();
-  } while (!ready_actors_list_.empty());
-  return res;
 }
 
 inline void Scheduler::run(Timestamp timeout) {

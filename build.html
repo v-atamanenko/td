@@ -61,7 +61,7 @@ select.large { font-size: large; }
       <option>CentOS 8</option>
       <option>Debian 8</option>
       <option>Debian 9</option>
-      <option>Debian 10</option>
+      <option>Debian 10+</option>
       <option>Ubuntu 14</option>
       <option>Ubuntu 16</option>
       <option>Ubuntu 18</option>
@@ -229,7 +229,7 @@ function onLanguageChanged(initial) {
   if (supported_os.length) {
     document.getElementById('osSelectDiv').style.display = 'block';
   } else {
-    if (history.state != '') {
+    if (history.state !== '' && history.state !== null) {
       history.pushState('', '', 'build.html');
     }
     document.getElementById('osSelectDiv').style.display = 'none';
@@ -501,7 +501,6 @@ function onOptionsChanged() {
     pre_text.push('Download and install <a href="https://visualstudio.microsoft.com/vs/community/">Microsoft Visual Studio</a>. Enable C++' + win10_sdk + ' support while installing.');
     pre_text.push('Download and install <a href="https://cmake.org/download/">CMake</a>; choose "Add CMake to the system PATH" option while installing.');
     pre_text.push('Download and install <a href="https://git-scm.com/download/win">Git</a>.');
-    pre_text.push('Download and install <a href="https://sourceforge.net/projects/gnuwin32/files/gperf/3.0.1/">gperf</a>. Add the path to gperf.exe to the PATH environment variable.');
     pre_text.push('Download and unpack <a href="https://windows.php.net/download#php-7.2">PHP</a>. Add the path to php.exe to the PATH environment variable.');
     if (target === 'C++/CX') {
       switch (archiver) {
@@ -542,6 +541,10 @@ function onOptionsChanged() {
   }
   if (os_netbsd) {
     pre_text.push('Note that the following instruction is for NetBSD 8.0 and default SH shell.');
+  }
+  if (os_mac) {
+    pre_text.push('Note that the following instruction will build TDLib only for the current architecture (x64 or Apple silicon).');
+    pre_text.push('If you want to create a universal XCFramework, take a look at our <a href="https://github.com/tdlib/td/tree/master/example/ios">example</a> instead.');
   }
 
   var terminal_name = (function () {
@@ -626,7 +629,7 @@ function onOptionsChanged() {
           cmake = 'cmake3';
           packages += ' gperf';
         } else {
-          commands.push(sudo + 'dnf --enablerepo=PowerTools install gperf');
+          commands.push(sudo + 'dnf --enablerepo=powertools install gperf');
         }
         packages += ' ' + cmake;
         if (target === 'JNI') {
@@ -636,7 +639,7 @@ function onOptionsChanged() {
         break;
       case 'Debian 8':
       case 'Debian 9':
-      case 'Debian 10':
+      case 'Debian 10+':
       case 'Ubuntu 14':
       case 'Ubuntu 16':
       case 'Ubuntu 18':
@@ -665,7 +668,7 @@ function onOptionsChanged() {
         }
         if (use_clang) {
           packages += ' clang' + getClangVersionSuffix() + ' libc++-dev';
-          if (linux_distro === 'Debian 10' || linux_distro === 'Ubuntu 18' || linux_distro === 'Ubuntu 20') {
+          if (linux_distro === 'Debian 10+' || linux_distro === 'Ubuntu 18' || linux_distro === 'Ubuntu 20') {
             packages += ' libc++abi-dev';
           }
         } else {
@@ -722,12 +725,12 @@ function onOptionsChanged() {
     commands.push('cd vcpkg');
     commands.push(local + 'bootstrap-vcpkg.bat');
     if (target === 'C++/CX') {
-      commands.push(local + 'vcpkg.exe install openssl-uwp:arm-uwp openssl-uwp:x64-uwp openssl-uwp:x86-uwp zlib:arm-uwp zlib:x64-uwp zlib:x86-uwp');
+      commands.push(local + 'vcpkg.exe install gperf:x86-windows openssl:arm-uwp openssl:arm64-uwp openssl:x64-uwp openssl:x86-uwp zlib:arm-uwp zlib:arm64-uwp zlib:x64-uwp zlib:x86-uwp');
     } else {
       if (build_64bit) {
-        commands.push(local + 'vcpkg.exe install openssl:x64-windows zlib:x64-windows');
+        commands.push(local + 'vcpkg.exe install gperf:x64-windows openssl:x64-windows zlib:x64-windows');
       } else {
-        commands.push(local + 'vcpkg.exe install openssl:x86-windows zlib:x86-windows');
+        commands.push(local + 'vcpkg.exe install gperf:x86-windows openssl:x86-windows zlib:x86-windows');
       }
     }
     commands.push('cd ..');
@@ -771,7 +774,7 @@ function onOptionsChanged() {
         break;
     }
 
-    commands.push('powershell -ExecutionPolicy ByPass ' + local + 'build.ps1 -mode clean');
+    commands.push('powershell -ExecutionPolicy ByPass ' + local + 'build.ps1 -vcpkg_root ../../vcpkg -mode clean');
     commands.push('powershell -ExecutionPolicy ByPass ' + local + 'build.ps1 -vcpkg_root ../../vcpkg' + archiver_option);
     if (install_dir) {
       commands.push('cp build-uwp/vsix/tdlib.vsix ' + install_dir);

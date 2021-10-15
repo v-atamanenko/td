@@ -18,29 +18,29 @@
 
 namespace td {
 
-class SqliteKeyValueAsync : public SqliteKeyValueAsyncInterface {
+class SqliteKeyValueAsync final : public SqliteKeyValueAsyncInterface {
  public:
   explicit SqliteKeyValueAsync(std::shared_ptr<SqliteKeyValueSafe> kv_safe, int32 scheduler_id = -1) {
     impl_ = create_actor_on_scheduler<Impl>("KV", scheduler_id, std::move(kv_safe));
   }
-  void set(string key, string value, Promise<> promise) override {
+  void set(string key, string value, Promise<> promise) final {
     send_closure_later(impl_, &Impl::set, std::move(key), std::move(value), std::move(promise));
   }
-  void erase(string key, Promise<> promise) override {
+  void erase(string key, Promise<> promise) final {
     send_closure_later(impl_, &Impl::erase, std::move(key), std::move(promise));
   }
-  void erase_by_prefix(string key_prefix, Promise<> promise) override {
+  void erase_by_prefix(string key_prefix, Promise<> promise) final {
     send_closure_later(impl_, &Impl::erase_by_prefix, std::move(key_prefix), std::move(promise));
   }
-  void get(string key, Promise<string> promise) override {
+  void get(string key, Promise<string> promise) final {
     send_closure_later(impl_, &Impl::get, std::move(key), std::move(promise));
   }
-  void close(Promise<> promise) override {
+  void close(Promise<> promise) final {
     send_closure_later(impl_, &Impl::close, std::move(promise));
   }
 
  private:
-  class Impl : public Actor {
+  class Impl final : public Actor {
    public:
     explicit Impl(std::shared_ptr<SqliteKeyValueSafe> kv_safe) : kv_safe_(std::move(kv_safe)) {
     }
@@ -121,7 +121,7 @@ class SqliteKeyValueAsync : public SqliteKeyValueAsyncInterface {
       wakeup_at_ = 0;
       cnt_ = 0;
 
-      kv_->begin_transaction().ensure();
+      kv_->begin_write_transaction().ensure();
       for (auto &it : buffer_) {
         if (it.second) {
           kv_->set(it.first, it.second.value());
@@ -137,11 +137,11 @@ class SqliteKeyValueAsync : public SqliteKeyValueAsyncInterface {
       buffer_promises_.clear();
     }
 
-    void timeout_expired() override {
+    void timeout_expired() final {
       do_flush(false /*force*/);
     }
 
-    void start_up() override {
+    void start_up() final {
       kv_ = &kv_safe_->get();
     }
   };

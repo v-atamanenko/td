@@ -9,6 +9,8 @@
 #include "td/mtproto/AuthData.h"
 #include "td/mtproto/AuthKey.h"
 #include "td/mtproto/CryptoStorer.h"
+#include "td/mtproto/mtproto_api.h"
+#include "td/mtproto/mtproto_api.hpp"
 #include "td/mtproto/PacketStorer.h"
 #include "td/mtproto/Transport.h"
 #include "td/mtproto/utils.h"
@@ -25,9 +27,7 @@
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Time.h"
 #include "td/utils/tl_parsers.h"
-
-#include "td/mtproto/mtproto_api.h"
-#include "td/mtproto/mtproto_api.hpp"
+#include "td/utils/TlDowncastHelper.h"
 
 #include <algorithm>
 #include <iterator>
@@ -172,27 +172,10 @@ namespace mtproto {
  *
  */
 
-class OnPacket {
-  const MsgInfo &info_;
-  SessionConnection *connection_;
-  Status *status_;
-
- public:
-  OnPacket(const MsgInfo &info, SessionConnection *connection, Status *status)
-      : info_(info), connection_(connection), status_(status) {
-  }
-
-  template <class T>
-  void operator()(const T &func) const {
-    *status_ = connection_->on_packet(info_, func);
-  }
-};
-
 unique_ptr<RawConnection> SessionConnection::move_as_raw_connection() {
   return std::move(raw_connection_);
 }
 
-/*** SessionConnection ***/
 BufferSlice SessionConnection::as_buffer_slice(Slice packet) {
   return current_buffer_slice_->from_slice(packet);
 }
@@ -232,7 +215,6 @@ Status SessionConnection::on_packet_container(const MsgInfo &info, Slice packet)
   };
 
   TlParser parser(packet);
-  parser.fetch_int();
   int32 size = parser.fetch_int();
   if (parser.get_error()) {
     return Status::Error(PSLICE() << "Failed to parse mtproto_api::rpc_container: " << parser.get_error());
@@ -245,32 +227,40 @@ Status SessionConnection::on_packet_container(const MsgInfo &info, Slice packet)
 
 Status SessionConnection::on_packet_rpc_result(const MsgInfo &info, Slice packet) {
   TlParser parser(packet);
-  parser.fetch_int();
   uint64 req_msg_id = parser.fetch_long();
   if (parser.get_error()) {
     return Status::Error(PSLICE() << "Failed to parse mtproto_api::rpc_result: " << parser.get_error());
   }
-
-  auto object_begin_pos = packet.size() - parser.get_left_len();
-  int32 id = parser.fetch_int();
-  if (id == mtproto_api::rpc_error::ID) {
-    mtproto_api::rpc_error rpc_error(parser);
-    if (parser.get_error()) {
-      return Status::Error(PSLICE() << "Failed to parse mtproto_api::rpc_error: " << parser.get_error());
-    }
-    return on_packet(info, req_msg_id, rpc_error);
-  } else if (id == mtproto_api::gzip_packed::ID) {
-    mtproto_api::gzip_packed gzip(parser);
-    if (parser.get_error()) {
-      return Status::Error(PSLICE() << "Failed to parse mtproto_api::gzip_packed: " << parser.get_error());
-    }
-    // yep, gzip in rpc_result
-    BufferSlice object = gzdecode(gzip.packed_data_);
-    // send header no more optimization
-    return callback_->on_message_result_ok(req_msg_id, std::move(object), info.size);
+  if (req_msg_id == 0) {
+    LOG(ERROR) << "Receive an update in rpc_result: message_id = " << info.message_id << ", seq_no = " << info.seq_no;
+    return Status::Error("Receive an update in rpc_result");
   }
 
-  return callback_->on_message_result_ok(req_msg_id, as_buffer_slice(packet.substr(object_begin_pos)), info.size);
+  switch (parser.fetch_int()) {
+    case mtproto_api::rpc_error::ID: {
+      mtproto_api::rpc_error rpc_error(parser);
+      if (parser.get_error()) {
+        return Status::Error(PSLICE() << "Failed to parse mtproto_api::rpc_error: " << parser.get_error());
+      }
+      VLOG(mtproto) << "ERROR " << tag("code", rpc_error.error_code_) << tag("message", rpc_error.error_message_)
+                    << tag("req_msg_id", req_msg_id);
+      callback_->on_message_result_error(req_msg_id, rpc_error.error_code_, rpc_error.error_message_.str());
+      return Status::OK();
+    }
+    case mtproto_api::gzip_packed::ID: {
+      mtproto_api::gzip_packed gzip(parser);
+      if (parser.get_error()) {
+        return Status::Error(PSLICE() << "Failed to parse mtproto_api::gzip_packed: " << parser.get_error());
+      }
+      // yep, gzip in rpc_result
+      BufferSlice object = gzdecode(gzip.packed_data_);
+      // send header no more optimization
+      return callback_->on_message_result_ok(req_msg_id, std::move(object), info.size);
+    }
+    default:
+      packet.remove_prefix(sizeof(req_msg_id));
+      return callback_->on_message_result_ok(req_msg_id, as_buffer_slice(packet), info.size);
+  }
 }
 
 template <class T>
@@ -278,12 +268,15 @@ Status SessionConnection::on_packet(const MsgInfo &info, const T &packet) {
   LOG(ERROR) << "Unsupported: " << to_string(packet);
   return Status::OK();
 }
+
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::destroy_auth_key_ok &destroy_auth_key) {
   return on_destroy_auth_key(destroy_auth_key);
 }
+
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::destroy_auth_key_none &destroy_auth_key) {
   return on_destroy_auth_key(destroy_auth_key);
 }
+
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::destroy_auth_key_fail &destroy_auth_key) {
   return on_destroy_auth_key(destroy_auth_key);
 }
@@ -295,18 +288,7 @@ Status SessionConnection::on_destroy_auth_key(const mtproto_api::DestroyAuthKeyR
 }
 
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::rpc_error &rpc_error) {
-  return on_packet(info, 0, rpc_error);
-}
-
-Status SessionConnection::on_packet(const MsgInfo &info, uint64 req_msg_id, const mtproto_api::rpc_error &rpc_error) {
-  VLOG(mtproto) << "ERROR " << tag("code", rpc_error.error_code_) << tag("message", rpc_error.error_message_)
-                << tag("req_msg_id", req_msg_id);
-  if (req_msg_id != 0) {
-    callback_->on_message_result_error(req_msg_id, rpc_error.error_code_, as_buffer_slice(rpc_error.error_message_));
-  } else {
-    LOG(WARNING) << "Receive rpc_error as update: [" << rpc_error.error_code_ << "][" << rpc_error.error_message_
-                 << "]";
-  }
+  LOG(ERROR) << "Receive rpc_error as update: [" << rpc_error.error_code_ << "][" << rpc_error.error_message_ << "]";
   return Status::OK();
 }
 
@@ -426,7 +408,7 @@ Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::pong
 }
 Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::future_salts &salts) {
   VLOG(mtproto) << "FUTURE_SALTS";
-  std::vector<ServerSalt> new_salts;
+  vector<ServerSalt> new_salts;
   for (auto &it : salts.salts_) {
     new_salts.push_back(
         ServerSalt{it->salt_, static_cast<double>(it->valid_since_), static_cast<double>(it->valid_until_)});
@@ -437,7 +419,7 @@ Status SessionConnection::on_packet(const MsgInfo &info, const mtproto_api::futu
   return Status::OK();
 }
 
-Status SessionConnection::on_msgs_state_info(const std::vector<int64> &ids, Slice info) {
+Status SessionConnection::on_msgs_state_info(const vector<int64> &ids, Slice info) {
   if (ids.size() != info.size()) {
     return Status::Error(PSLICE() << tag("ids.size()", ids.size()) << " != " << tag("info.size()", info.size()));
   }
@@ -483,41 +465,66 @@ Status SessionConnection::on_slice_packet(const MsgInfo &info, Slice packet) {
   if (info.seq_no & 1) {
     send_ack(info.message_id);
   }
-  TlParser parser(packet);
-  tl_object_ptr<mtproto_api::Object> object = mtproto_api::Object::fetch(parser);
-  parser.fetch_end();
-  if (parser.get_error()) {
-    // msg_container is not real tl object
-    if (packet.size() >= 4 && as<int32>(packet.begin()) == mtproto_api::msg_container::ID) {
-      return on_packet_container(info, packet);
-    }
-    if (packet.size() >= 4 && as<int32>(packet.begin()) == mtproto_api::rpc_result::ID) {
-      return on_packet_rpc_result(info, packet);
-    }
-
-    // It is an update... I hope.
-    auto status = auth_data_->check_update(info.message_id);
-    if (status.is_error()) {
-      if (status.code() == 2) {
-        LOG(WARNING) << "Receive too old update: " << status;
-        callback_->on_session_failed(Status::Error("Receive too old update"));
-        return status;
-      }
-      VLOG(mtproto) << "Skip update " << info.message_id << " from " << get_name() << " created in "
-                    << (Time::now() - created_at_) << ": " << status;
-      return Status::OK();
-    } else {
-      VLOG(mtproto) << "Got update from " << get_name() << " created in " << (Time::now() - created_at_)
-                    << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
-                    << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
-                    << ", seq_no = " << info.seq_no << " and original size " << info.size;
-      return callback_->on_message_result_ok(0, as_buffer_slice(packet), info.size);
-    }
+  if (packet.size() < 4) {
+    callback_->on_session_failed(Status::Error("Receive too small packet"));
+    return Status::Error(PSLICE() << "Receive packet of size " << packet.size());
   }
 
+  int32 constructor_id = as<int32>(packet.begin());
+  if (constructor_id == mtproto_api::msg_container::ID) {
+    return on_packet_container(info, packet.substr(4));
+  }
+  if (constructor_id == mtproto_api::rpc_result::ID) {
+    return on_packet_rpc_result(info, packet.substr(4));
+  }
+
+  TlDowncastHelper<mtproto_api::Object> helper(constructor_id);
   Status status;
-  downcast_call(*object, OnPacket(info, this, &status));
-  return status;
+  bool is_mtproto_api = downcast_call(static_cast<mtproto_api::Object &>(helper), [&](auto &dummy) {
+    // a constructor from mtproto_api
+    using Type = std::decay_t<decltype(dummy)>;
+    TlParser parser(packet.substr(4));
+    auto object = Type::fetch(parser);
+    parser.fetch_end();
+    if (parser.get_error()) {
+      status = parser.get_status();
+    } else {
+      status = this->on_packet(info, static_cast<const Type &>(*object));
+    }
+  });
+  if (is_mtproto_api) {
+    return status;
+  }
+
+  // It is an update... I hope.
+  status = auth_data_->check_update(info.message_id);
+  auto recheck_status = auth_data_->recheck_update(info.message_id);
+  if (recheck_status.is_error() && recheck_status.code() == 2) {
+    LOG(WARNING) << "Receive very old update from " << get_name() << " created in " << (Time::now() - created_at_)
+                 << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
+                 << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
+                 << ", seq_no = " << info.seq_no << " and original size " << info.size << ": " << status << ' '
+                 << recheck_status;
+  }
+  if (status.is_error()) {
+    if (status.code() == 2) {
+      LOG(WARNING) << "Receive too old update from " << get_name() << " created in " << (Time::now() - created_at_)
+                   << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
+                   << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
+                   << ", seq_no = " << info.seq_no << " and original size " << info.size << ": " << status;
+      callback_->on_session_failed(Status::Error("Receive too old update"));
+      return status;
+    }
+    VLOG(mtproto) << "Skip update " << info.message_id << " of size " << info.size << " with seq_no " << info.seq_no
+                  << " from " << get_name() << " created in " << (Time::now() - created_at_) << ": " << status;
+    return Status::OK();
+  } else {
+    VLOG(mtproto) << "Got update from " << get_name() << " created in " << (Time::now() - created_at_)
+                  << " in container " << container_id_ << " from session " << auth_data_->get_session_id()
+                  << " with message_id " << info.message_id << ", main_message_id = " << main_message_id_
+                  << ", seq_no = " << info.seq_no << " and original size " << info.size;
+    return callback_->on_update(as_buffer_slice(packet));
+  }
 }
 
 Status SessionConnection::parse_packet(TlParser &parser) {
@@ -572,6 +579,7 @@ void SessionConnection::on_message_failed(uint64 id, Status status) {
     on_message_failed_inner(id);
   }
 }
+
 void SessionConnection::on_message_failed_inner(uint64 id) {
   auto it = service_queries_.find(id);
   if (it == service_queries_.end()) {
@@ -653,6 +661,7 @@ bool SessionConnection::must_flush_packet() {
 }
 
 Status SessionConnection::before_write() {
+  CHECK(raw_connection_);
   while (must_flush_packet()) {
     flush_packet();
   }
@@ -706,12 +715,14 @@ void SessionConnection::on_read(size_t size) {
 
 SessionConnection::SessionConnection(Mode mode, unique_ptr<RawConnection> raw_connection, AuthData *auth_data)
     : raw_connection_(std::move(raw_connection)), auth_data_(auth_data) {
+  CHECK(raw_connection_);
   state_ = Init;
   mode_ = mode;
   created_at_ = Time::now();
 }
 
 PollableFdInfo &SessionConnection::get_poll_info() {
+  CHECK(raw_connection_);
   return raw_connection_->get_poll_info();
 }
 
@@ -891,7 +902,7 @@ void SessionConnection::flush_packet() {
       send_till++;
     }
   }
-  std::vector<MtprotoQuery> queries;
+  vector<MtprotoQuery> queries;
   if (send_till == to_send_.size()) {
     queries = std::move(to_send_);
   } else if (send_till != 0) {
@@ -916,14 +927,16 @@ void SessionConnection::flush_packet() {
                 << tag("resend", to_resend_answer_.size()) << tag("cancel", to_cancel_answer_.size())
                 << tag("destroy_key", destroy_auth_key) << tag("auth_id", auth_data_->get_auth_key().id());
 
-  auto cut_tail = [](auto &v, size_t size, Slice name) {
+  auto cut_tail = [](vector<int64> &v, size_t size, Slice name) {
     if (size >= v.size()) {
-      return std::move(v);
+      auto result = std::move(v);
+      v.clear();
+      return result;
     }
-    LOG(WARNING) << "Too much ids in container: " << v.size() << " " << name;
-    std::decay_t<decltype(v)> res(std::make_move_iterator(v.end() - size), std::make_move_iterator(v.end()));
+    LOG(WARNING) << "Too much message identifiers in container " << name << ": " << v.size() << " instead of " << size;
+    vector<int64> result(v.end() - size, v.end());
     v.resize(v.size() - size);
-    return res;
+    return result;
   };
 
   // no more than 8192 ids per container..

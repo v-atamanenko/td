@@ -13,9 +13,9 @@
 #include "td/telegram/net/DcOptionsSet.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/Proxy.h"
-#include "td/telegram/StateManager.h"
 
 #include "td/mtproto/AuthData.h"
+#include "td/mtproto/ConnectionManager.h"
 #include "td/mtproto/RawConnection.h"
 #include "td/mtproto/TransportType.h"
 
@@ -48,18 +48,14 @@ class StatsCallback;
 
 class GetHostByNameActor;
 
-}  // namespace td
-
-namespace td {
-
 extern int VERBOSITY_NAME(connections);
 
-class ConnectionCreator : public NetQueryCallback {
+class ConnectionCreator final : public NetQueryCallback {
  public:
   explicit ConnectionCreator(ActorShared<> parent);
   ConnectionCreator(ConnectionCreator &&other);
   ConnectionCreator &operator=(ConnectionCreator &&other);
-  ~ConnectionCreator() override;
+  ~ConnectionCreator() final;
 
   void on_dc_options(DcOptions new_dc_options);
   void on_dc_update(DcId dc_id, string ip_port, Promise<> promise);
@@ -86,7 +82,7 @@ class ConnectionCreator : public NetQueryCallback {
   struct ConnectionData {
     IPAddress ip_address;
     SocketFd socket_fd;
-    StateManager::ConnectionToken connection_token;
+    mtproto::ConnectionManager::ConnectionToken connection_token;
     unique_ptr<mtproto::RawConnection::StatsCallback> stats_callback;
   };
 
@@ -202,10 +198,10 @@ class ConnectionCreator : public NetQueryCallback {
   void save_proxy_last_used_date(int32 delay);
   td_api::object_ptr<td_api::proxy> get_proxy_object(int32 proxy_id) const;
 
-  void start_up() override;
-  void hangup_shared() override;
-  void hangup() override;
-  void loop() override;
+  void start_up() final;
+  void hangup_shared() final;
+  void hangup() final;
+  void loop() final;
 
   void save_dc_options();
   Result<SocketFd> do_request_connection(DcId dc_id, bool allow_media_only);

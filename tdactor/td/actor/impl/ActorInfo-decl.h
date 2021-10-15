@@ -47,9 +47,9 @@ class ActorContext {
   std::weak_ptr<ActorContext> this_ptr_;
 };
 
-class ActorInfo
+class ActorInfo final
     : private ListNode
-    , HeapNode {
+    , private HeapNode {
  public:
   enum class Deleter : uint8 { Destroy, None };
 
@@ -86,6 +86,7 @@ class ActorInfo
   const Actor *get_actor_unsafe() const;
 
   std::shared_ptr<ActorContext> set_context(std::shared_ptr<ActorContext> context);
+  std::weak_ptr<ActorContext> get_context_weak_ptr() const;
   ActorContext *get_context();
   const ActorContext *get_context() const;
   CSlice get_name() const;

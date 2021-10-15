@@ -4,8 +4,6 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/utils/tests.h"
-
 #include "td/actor/actor.h"
 #include "td/actor/ConcurrentScheduler.h"
 #include "td/actor/MultiPromise.h"
@@ -23,12 +21,11 @@
 #include "td/utils/Slice.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
+#include "td/utils/tests.h"
 #include "td/utils/Time.h"
 
 #include <memory>
 #include <tuple>
-
-REGISTER_TESTS(actors_simple)
 
 namespace {
 using namespace td;
@@ -52,19 +49,19 @@ TEST(Actors, SendLater) {
   scheduler.init(0, {create_queue()}, nullptr);
 
   auto guard = scheduler.get_guard();
-  class Worker : public Actor {
+  class Worker final : public Actor {
    public:
     void f() {
       sb << "A";
     }
   };
   auto id = create_actor<Worker>("Worker");
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   send_closure(id, &Worker::f);
   send_closure_later(id, &Worker::f);
   send_closure(id, &Worker::f);
   ASSERT_STREQ("A", sb.as_cslice().c_str());
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   ASSERT_STREQ("AAA", sb.as_cslice().c_str());
 }
 
@@ -110,7 +107,7 @@ TEST(Actors, simple_pass_event_arguments) {
 
   auto guard = scheduler.get_guard();
   auto id = create_actor<XReceiver>("XR").release();
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
 
   X x;
 
@@ -131,7 +128,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Tmp-->ConstRef (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_const_ref, X());
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   // LOG(ERROR) << sb.as_cslice();
   ASSERT_STREQ("[cnstr_default][cnstr_move][by_const_ref]", sb.as_cslice().c_str());
 
@@ -143,7 +140,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Tmp-->LvalueRef (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_lvalue_ref, X());
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   ASSERT_STREQ("[cnstr_default][cnstr_move][by_lvalue_ref]", sb.as_cslice().c_str());
 
   // Tmp-->Value
@@ -154,7 +151,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Tmp-->Value (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_value, X());
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   ASSERT_STREQ("[cnstr_default][cnstr_move][cnstr_move][by_value]", sb.as_cslice().c_str());
 
   // Var-->ConstRef
@@ -165,7 +162,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Var-->ConstRef (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_const_ref, x);
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   ASSERT_STREQ("[cnstr_copy][by_const_ref]", sb.as_cslice().c_str());
 
   // Var-->LvalueRef
@@ -180,7 +177,7 @@ TEST(Actors, simple_pass_event_arguments) {
   // Var-->Value (Delayed)
   sb.clear();
   send_closure_later(id, &XReceiver::by_value, x);
-  scheduler.run_no_guard(Timestamp::now());
+  scheduler.run_no_guard(Timestamp::in(1));
   ASSERT_STREQ("[cnstr_copy][cnstr_move][by_value]", sb.as_cslice().c_str());
 }
 
@@ -188,10 +185,10 @@ class PrintChar final : public Actor {
  public:
   PrintChar(char c, int cnt) : char_(c), cnt_(cnt) {
   }
-  void start_up() override {
+  void start_up() final {
     yield();
   }
-  void wakeup() override {
+  void wakeup() final {
     if (cnt_ == 0) {
       stop();
     } else {
@@ -222,7 +219,7 @@ TEST(Actors, simple_hand_yield) {
     create_actor<PrintChar>("PrintB", 'B', cnt).release();
     create_actor<PrintChar>("PrintC", 'C', cnt).release();
   }
-  scheduler.run(Timestamp::now());
+  scheduler.run(Timestamp::in(1));
   std::string expected;
   for (int i = 0; i < cnt; i++) {
     expected += "ABC";
@@ -251,7 +248,7 @@ class Ping final : public Actor {
  public:
   explicit Ping(ActorId<Pong> pong) : pong_(pong) {
   }
-  void start_up() override {
+  void start_up() final {
     send_closure(pong_, &Pong::pong, Ball());
   }
 
@@ -284,10 +281,10 @@ class OpenClose final : public Actor {
  public:
   explicit OpenClose(int cnt) : cnt_(cnt) {
   }
-  void start_up() override {
+  void start_up() final {
     yield();
   }
-  void wakeup() override {
+  void wakeup() final {
     ObserverBase *observer = reinterpret_cast<ObserverBase *>(123);
     if (cnt_ > 0) {
       auto r_file_fd = FileFd::open("server", FileFd::Read | FileFd::Create);
@@ -329,19 +326,19 @@ class MsgActor : public Actor {
   virtual void msg() = 0;
 };
 
-class Slave : public Actor {
+class Slave final : public Actor {
  public:
   ActorId<MsgActor> msg;
   explicit Slave(ActorId<MsgActor> msg) : msg(msg) {
   }
-  void hangup() override {
+  void hangup() final {
     send_closure(msg, &MsgActor::msg);
   }
 };
 
-class MasterActor : public MsgActor {
+class MasterActor final : public MsgActor {
  public:
-  void loop() override {
+  void loop() final {
     alive_ = true;
     slave = create_actor<Slave>("slave", static_cast<ActorId<MsgActor>>(actor_id(this)));
     stop();
@@ -353,10 +350,10 @@ class MasterActor : public MsgActor {
   MasterActor &operator=(const MasterActor &) = delete;
   MasterActor(MasterActor &&) = delete;
   MasterActor &operator=(MasterActor &&) = delete;
-  ~MasterActor() override {
+  ~MasterActor() final {
     alive_ = 987654321;
   }
-  void msg() override {
+  void msg() final {
     CHECK(alive_ == 123456789);
   }
   uint64 alive_ = 123456789;
@@ -371,10 +368,10 @@ TEST(Actors, call_after_destruct) {
     auto guard = scheduler.get_guard();
     create_actor<MasterActor>("Master").release();
   }
-  scheduler.run(Timestamp::now());
+  scheduler.run(Timestamp::in(1));
 }
 
-class LinkTokenSlave : public Actor {
+class LinkTokenSlave final : public Actor {
  public:
   explicit LinkTokenSlave(ActorShared<> parent) : parent_(std::move(parent)) {
   }
@@ -389,15 +386,15 @@ class LinkTokenSlave : public Actor {
   ActorShared<> parent_;
 };
 
-class LinkTokenMasterActor : public Actor {
+class LinkTokenMasterActor final : public Actor {
  public:
   explicit LinkTokenMasterActor(int cnt) : cnt_(cnt) {
   }
-  void start_up() override {
+  void start_up() final {
     child_ = create_actor<LinkTokenSlave>("Slave", actor_shared(this, 123)).release();
     yield();
   }
-  void loop() override {
+  void loop() final {
     for (int i = 0; i < 100 && cnt_ > 0; cnt_--, i++) {
       auto token = static_cast<uint64>(cnt_) + 1;
       switch (i % 4) {
@@ -427,7 +424,7 @@ class LinkTokenMasterActor : public Actor {
     }
   }
 
-  void hangup_shared() override {
+  void hangup_shared() final {
     CHECK(get_link_token() == 123);
     Scheduler::instance()->finish();
     stop();
@@ -460,7 +457,7 @@ TEST(Actors, promise) {
   ASSERT_EQ(1, value);
 }
 
-class LaterSlave : public Actor {
+class LaterSlave final : public Actor {
  public:
   explicit LaterSlave(ActorShared<> parent) : parent_(std::move(parent)) {
   }
@@ -468,7 +465,7 @@ class LaterSlave : public Actor {
  private:
   ActorShared<> parent_;
 
-  void hangup() override {
+  void hangup() final {
     sb << "A";
     send_closure(actor_id(this), &LaterSlave::finish);
   }
@@ -478,19 +475,19 @@ class LaterSlave : public Actor {
   }
 };
 
-class LaterMasterActor : public Actor {
+class LaterMasterActor final : public Actor {
   int cnt_ = 3;
   std::vector<ActorOwn<LaterSlave>> children_;
-  void start_up() override {
+  void start_up() final {
     for (int i = 0; i < cnt_; i++) {
       children_.push_back(create_actor<LaterSlave>("B", actor_shared(this)));
     }
     yield();
   }
-  void loop() override {
+  void loop() final {
     children_.clear();
   }
-  void hangup_shared() override {
+  void hangup_shared() final {
     if (!--cnt_) {
       Scheduler::instance()->finish();
       stop();
@@ -511,9 +508,9 @@ TEST(Actors, later) {
   ASSERT_STREQ(sb.as_cslice().c_str(), "AAABBB");
 }
 
-class MultiPromise2 : public Actor {
+class MultiPromise2 final : public Actor {
  public:
-  void start_up() override {
+  void start_up() final {
     auto promise = PromiseCreator::lambda([](Result<Unit> result) {
       result.ensure();
       Scheduler::instance()->finish();
@@ -527,9 +524,9 @@ class MultiPromise2 : public Actor {
   }
 };
 
-class MultiPromise1 : public Actor {
+class MultiPromise1 final : public Actor {
  public:
-  void start_up() override {
+  void start_up() final {
     auto promise = PromiseCreator::lambda([](Result<Unit> result) {
       CHECK(result.is_error());
       create_actor<MultiPromise2>("B").release();
@@ -551,9 +548,9 @@ TEST(Actors, MultiPromise) {
   scheduler.finish();
 }
 
-class FastPromise : public Actor {
+class FastPromise final : public Actor {
  public:
-  void start_up() override {
+  void start_up() final {
     PromiseFuture<int> pf;
     auto promise = pf.move_promise();
     auto future = pf.move_future();
@@ -575,11 +572,11 @@ TEST(Actors, FastPromise) {
   scheduler.finish();
 }
 
-class StopInTeardown : public Actor {
-  void loop() override {
+class StopInTeardown final : public Actor {
+  void loop() final {
     stop();
   }
-  void tear_down() override {
+  void tear_down() final {
     stop();
     Scheduler::instance()->finish();
   }
@@ -597,9 +594,9 @@ TEST(Actors, stop_in_teardown) {
   scheduler.finish();
 }
 
-class AlwaysWaitForMailbox : public Actor {
+class AlwaysWaitForMailbox final : public Actor {
  public:
-  void start_up() override {
+  void start_up() final {
     always_wait_for_mailbox();
     create_actor<SleepActor>("Sleep", 0.1, PromiseCreator::lambda([actor_id = actor_id(this), ptr = this](Unit) {
                                send_closure(actor_id, &AlwaysWaitForMailbox::g);
@@ -639,7 +636,7 @@ TEST(Actors, send_from_other_threads) {
   ConcurrentScheduler scheduler;
   scheduler.init(1);
   int thread_n = 10;
-  class Listener : public Actor {
+  class Listener final : public Actor {
    public:
     explicit Listener(int cnt) : cnt_(cnt) {
     }
@@ -670,3 +667,45 @@ TEST(Actors, send_from_other_threads) {
   scheduler.finish();
 }
 #endif
+
+class DelayedCall final : public Actor {
+ public:
+  void on_called(int *order) {
+    CHECK(*order == 0);
+    *order = 1;
+  }
+};
+
+class MultiPromiseSendClosureLaterTest final : public Actor {
+ public:
+  void start_up() final {
+    delayed_call_ = create_actor<DelayedCall>("DelayedCall").release();
+    mpa_.add_promise(PromiseCreator::lambda([this](Unit) {
+      CHECK(order_ == 1);
+      order_++;
+      Scheduler::instance()->finish();
+    }));
+    auto lock = mpa_.get_promise();
+    send_closure_later(delayed_call_, &DelayedCall::on_called, &order_);
+    lock.set_value(Unit());
+  }
+
+  void tear_down() final {
+    CHECK(order_ == 2);
+  }
+
+ private:
+  int order_ = 0;
+  MultiPromiseActor mpa_{"MultiPromiseActor"};
+  ActorId<DelayedCall> delayed_call_;
+};
+
+TEST(Actors, MultiPromiseSendClosureLater) {
+  ConcurrentScheduler scheduler;
+  scheduler.init(0);
+  scheduler.create_actor_unsafe<MultiPromiseSendClosureLaterTest>(0, "MultiPromiseSendClosureLaterTest").release();
+  scheduler.start();
+  while (scheduler.run_main(1)) {
+  }
+  scheduler.finish();
+}

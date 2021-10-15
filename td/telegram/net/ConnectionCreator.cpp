@@ -143,11 +143,7 @@ void ConnectionCreator::set_net_stats_callback(std::shared_ptr<NetStatsCallback>
 void ConnectionCreator::add_proxy(int32 old_proxy_id, string server, int32 port, bool enable,
                                   td_api::object_ptr<td_api::ProxyType> proxy_type,
                                   Promise<td_api::object_ptr<td_api::proxy>> promise) {
-  auto r_proxy = Proxy::create_proxy(std::move(server), port, proxy_type.get());
-  if (r_proxy.is_error()) {
-    return promise.set_error(r_proxy.move_as_error());
-  }
-  auto new_proxy = r_proxy.move_as_ok();
+  TRY_RESULT_PROMISE(promise, new_proxy, Proxy::create_proxy(std::move(server), port, proxy_type.get()));
   if (old_proxy_id >= 0) {
     if (proxies_.count(old_proxy_id) == 0) {
       return promise.set_error(Status::Error(400, "Proxy not found"));
@@ -705,7 +701,7 @@ Result<SocketFd> ConnectionCreator::find_connection(const Proxy &proxy, const IP
   bool prefer_ipv6 =
       G()->shared_config().get_option_boolean("prefer_ipv6") || (proxy.use_proxy() && proxy_ip_address.is_ipv6());
   bool only_http = proxy.use_http_caching_proxy();
-#if TD_EXPERIMENTAL_WATCH_OS
+#if TD_DARWIN_WATCH_OS
   only_http = true;
 #endif
   TRY_RESULT(info, dc_options_set_.find_connection(
@@ -747,7 +743,7 @@ ActorOwn<> ConnectionCreator::prepare_connection(IPAddress ip_address, SocketFd 
                                                  Promise<ConnectionData> promise) {
   if (proxy.use_socks5_proxy() || proxy.use_http_tcp_proxy() || transport_type.secret.emulate_tls()) {
     VLOG(connections) << "Create new transparent proxy connection " << debug_str;
-    class Callback : public TransparentProxy::Callback {
+    class Callback final : public TransparentProxy::Callback {
      public:
       explicit Callback(Promise<ConnectionData> promise, IPAddress ip_address,
                         unique_ptr<mtproto::RawConnection::StatsCallback> stats_callback, bool use_connection_token,
@@ -758,10 +754,10 @@ ActorOwn<> ConnectionCreator::prepare_connection(IPAddress ip_address, SocketFd 
           , use_connection_token_(use_connection_token)
           , was_connected_(was_connected) {
       }
-      void set_result(Result<SocketFd> result) override {
+      void set_result(Result<SocketFd> result) final {
         if (result.is_error()) {
           if (use_connection_token_) {
-            connection_token_ = StateManager::ConnectionToken();
+            connection_token_ = mtproto::ConnectionManager::ConnectionToken();
           }
           if (was_connected_ && stats_callback_) {
             stats_callback_->on_error();
@@ -776,16 +772,17 @@ ActorOwn<> ConnectionCreator::prepare_connection(IPAddress ip_address, SocketFd 
           promise_.set_value(std::move(data));
         }
       }
-      void on_connected() override {
+      void on_connected() final {
         if (use_connection_token_) {
-          connection_token_ = StateManager::connection_proxy(G()->state_manager());
+          connection_token_ = mtproto::ConnectionManager::connection_proxy(
+              static_cast<ActorId<mtproto::ConnectionManager>>(G()->state_manager()));
         }
         was_connected_ = true;
       }
 
      private:
       Promise<ConnectionData> promise_;
-      StateManager::ConnectionToken connection_token_;
+      mtproto::ConnectionManager::ConnectionToken connection_token_;
       IPAddress ip_address_;
       unique_ptr<mtproto::RawConnection::StatsCallback> stats_callback_;
       bool use_connection_token_;
@@ -857,7 +854,7 @@ void ConnectionCreator::client_loop(ClientInfo &client) {
     auto begin = client.queries.begin();
     auto it = begin;
     while (it != client.queries.end() && !client.ready_connections.empty()) {
-      if (!it->is_cancelled()) {
+      if (!it->is_canceled()) {
         VLOG(connections) << "Send to promise " << tag("connection", client.ready_connections.back().first.get());
         it->set_value(std::move(client.ready_connections.back().first));
         client.ready_connections.pop_back();
@@ -1086,20 +1083,20 @@ void ConnectionCreator::update_mtproto_header(const Proxy &proxy) {
 }
 
 void ConnectionCreator::start_up() {
-  class StateCallback : public StateManager::Callback {
+  class StateCallback final : public StateManager::Callback {
    public:
     explicit StateCallback(ActorId<ConnectionCreator> connection_creator)
         : connection_creator_(std::move(connection_creator)) {
     }
-    bool on_network(NetType network_type, uint32 generation) override {
+    bool on_network(NetType network_type, uint32 generation) final {
       send_closure(connection_creator_, &ConnectionCreator::on_network, network_type != NetType::None, generation);
       return connection_creator_.is_alive();
     }
-    bool on_online(bool online_flag) override {
+    bool on_online(bool online_flag) final {
       send_closure(connection_creator_, &ConnectionCreator::on_online, online_flag);
       return connection_creator_.is_alive();
     }
-    bool on_logging_out(bool is_logging_out) override {
+    bool on_logging_out(bool is_logging_out) final {
       send_closure(connection_creator_, &ConnectionCreator::on_logging_out, is_logging_out);
       return connection_creator_.is_alive();
     }

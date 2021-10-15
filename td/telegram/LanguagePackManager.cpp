@@ -124,10 +124,7 @@ bool LanguagePackManager::is_custom_language_code(Slice language_code) {
 }
 
 static Result<SqliteDb> open_database(const string &path) {
-  TRY_RESULT(database, SqliteDb::open_with_key(path, DbKey::empty()));
-  TRY_STATUS(database.exec("PRAGMA synchronous=NORMAL"));
-  TRY_STATUS(database.exec("PRAGMA temp_store=MEMORY"));
-  TRY_STATUS(database.exec("PRAGMA encoding=\"UTF-8\""));
+  TRY_RESULT(database, SqliteDb::open_with_key(path, true, DbKey::empty()));
   TRY_STATUS(database.exec("PRAGMA journal_mode=WAL"));
   return std::move(database);
 }
@@ -1316,7 +1313,7 @@ void LanguagePackManager::save_strings_to_database(SqliteKeyValue *kv, int32 new
     return;
   }
 
-  kv->begin_transaction().ensure();
+  kv->begin_write_transaction().ensure();
   for (auto str : strings) {
     if (!is_valid_key(str.first)) {
       LOG(ERROR) << "Have invalid key \"" << str.first << '"';
@@ -1555,7 +1552,7 @@ void LanguagePackManager::add_custom_server_language(string language_code, Promi
 Result<tl_object_ptr<telegram_api::LangPackString>> LanguagePackManager::convert_to_telegram_api(
     tl_object_ptr<td_api::languagePackString> &&str) {
   if (str == nullptr) {
-    return Status::Error(400, "Language pack strings must not be null");
+    return Status::Error(400, "Language pack strings must be non-empty");
   }
 
   string key = std::move(str->key_);
@@ -1876,7 +1873,7 @@ void LanguagePackManager::send_with_promise(NetQueryPtr query, Promise<NetQueryP
 
 void LanguagePackManager::hangup() {
   container_.for_each(
-      [](auto id, Promise<NetQueryPtr> &promise) { promise.set_error(Status::Error(500, "Request aborted")); });
+      [](auto id, Promise<NetQueryPtr> &promise) { promise.set_error(Global::request_aborted_error()); });
   stop();
 }
 

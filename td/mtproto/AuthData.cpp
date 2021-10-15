@@ -17,26 +17,31 @@
 namespace td {
 namespace mtproto {
 
-Status MessageIdDuplicateChecker::check(int64 message_id) {
+Status check_message_id_duplicates(int64 *saved_message_ids, size_t max_size, size_t &end_pos, int64 message_id) {
   // In addition, the identifiers (msg_id) of the last N messages received from the other side must be stored, and if
   // a message comes in with msg_id lower than all or equal to any of the stored values, that message is to be
   // ignored. Otherwise, the new message msg_id is added to the set, and, if the number of stored msg_id values is
   // greater than N, the oldest (i. e. the lowest) is forgotten.
-  if (saved_message_ids_.size() == MAX_SAVED_MESSAGE_IDS) {
-    auto oldest_message_id = *saved_message_ids_.begin();
-    if (message_id < oldest_message_id) {
-      return Status::Error(2, PSLICE() << "Ignore very old message_id " << tag("oldest message_id", oldest_message_id)
-                                       << tag("got message_id", message_id));
-    }
+  if (end_pos == 2 * max_size) {
+    std::copy_n(&saved_message_ids[max_size], max_size, &saved_message_ids[0]);
+    end_pos = max_size;
   }
-  if (saved_message_ids_.count(message_id) != 0) {
+  if (end_pos == 0 || message_id > saved_message_ids[end_pos - 1]) {
+    // fast path
+    saved_message_ids[end_pos++] = message_id;
+    return Status::OK();
+  }
+  if (end_pos >= max_size && message_id < saved_message_ids[0]) {
+    return Status::Error(2, PSLICE() << "Ignore very old message_id " << tag("oldest message_id", saved_message_ids[0])
+                                     << tag("got message_id", message_id));
+  }
+  auto it = std::lower_bound(&saved_message_ids[0], &saved_message_ids[end_pos], message_id);
+  if (*it == message_id) {
     return Status::Error(1, PSLICE() << "Ignore duplicated message_id " << tag("message_id", message_id));
   }
-
-  saved_message_ids_.insert(message_id);
-  if (saved_message_ids_.size() > MAX_SAVED_MESSAGE_IDS) {
-    saved_message_ids_.erase(saved_message_ids_.begin());
-  }
+  std::copy_backward(it, &saved_message_ids[end_pos], &saved_message_ids[end_pos + 1]);
+  *it = message_id;
+  ++end_pos;
   return Status::OK();
 }
 

@@ -24,19 +24,20 @@
 #include "td/utils/Status.h"
 
 #include <unordered_map>
+#include <utility>
 
 namespace td {
 
 class Td;
 
-class GroupCallManager : public Actor {
+class GroupCallManager final : public Actor {
  public:
   GroupCallManager(Td *td, ActorShared<> parent);
   GroupCallManager(const GroupCallManager &) = delete;
   GroupCallManager &operator=(const GroupCallManager &) = delete;
   GroupCallManager(GroupCallManager &&) = delete;
   GroupCallManager &operator=(GroupCallManager &&) = delete;
-  ~GroupCallManager() override;
+  ~GroupCallManager() final;
 
   DialogId get_group_call_participant_id(const td_api::object_ptr<td_api::MessageSender> &message_sender);
 
@@ -59,16 +60,30 @@ class GroupCallManager : public Actor {
   void reload_group_call(InputGroupCallId input_group_call_id,
                          Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
 
-  void get_group_call_stream_segment(GroupCallId group_call_id, int64 time_offset, int32 scale,
+  void get_group_call_stream_segment(GroupCallId group_call_id, int64 time_offset, int32 scale, int32 channel_id,
+                                     td_api::object_ptr<td_api::GroupCallVideoQuality> quality,
                                      Promise<string> &&promise);
 
   void start_scheduled_group_call(GroupCallId group_call_id, Promise<Unit> &&promise);
 
-  void join_group_call(GroupCallId group_call_id, DialogId as_dialog_id,
-                       td_api::object_ptr<td_api::groupCallPayload> &&payload, int32 audio_source, bool is_muted,
-                       const string &invite_hash, Promise<td_api::object_ptr<td_api::GroupCallJoinResponse>> &&promise);
+  void join_group_call(GroupCallId group_call_id, DialogId as_dialog_id, int32 audio_source, string &&payload,
+                       bool is_muted, bool is_my_video_enabled, const string &invite_hash, Promise<string> &&promise);
+
+  void start_group_call_screen_sharing(GroupCallId group_call_id, int32 audio_source, string &&payload,
+                                       Promise<string> &&promise);
+
+  void end_group_call_screen_sharing(GroupCallId group_call_id, Promise<Unit> &&promise);
 
   void set_group_call_title(GroupCallId group_call_id, string title, Promise<Unit> &&promise);
+
+  void toggle_group_call_is_my_video_paused(GroupCallId group_call_id, bool is_my_video_paused,
+                                            Promise<Unit> &&promise);
+
+  void toggle_group_call_is_my_video_enabled(GroupCallId group_call_id, bool is_my_video_enabled,
+                                             Promise<Unit> &&promise);
+
+  void toggle_group_call_is_my_presentation_paused(GroupCallId group_call_id, bool is_my_presentation_paused,
+                                                   Promise<Unit> &&promise);
 
   void toggle_group_call_start_subscribed(GroupCallId group_call_id, bool start_subscribed, Promise<Unit> &&promise);
 
@@ -81,7 +96,8 @@ class GroupCallManager : public Actor {
 
   void get_group_call_invite_link(GroupCallId group_call_id, bool can_self_unmute, Promise<string> &&promise);
 
-  void toggle_group_call_recording(GroupCallId group_call_id, bool is_enabled, string title, Promise<Unit> &&promise);
+  void toggle_group_call_recording(GroupCallId group_call_id, bool is_enabled, string title, bool record_video,
+                                   bool use_portrait_orientation, Promise<Unit> &&promise);
 
   void set_group_call_participant_is_speaking(GroupCallId group_call_id, int32 audio_source, bool is_speaking,
                                               Promise<Unit> &&promise, int32 date = 0);
@@ -103,6 +119,8 @@ class GroupCallManager : public Actor {
 
   void on_update_dialog_about(DialogId dialog_id, const string &about, bool from_server);
 
+  void on_update_group_call_connection(string &&connection_params);
+
   void on_update_group_call(tl_object_ptr<telegram_api::GroupCall> group_call_ptr, DialogId dialog_id);
 
   void on_user_speaking_in_group_call(GroupCallId group_call_id, DialogId dialog_id, int32 date,
@@ -119,6 +137,9 @@ class GroupCallManager : public Actor {
   void process_join_group_call_response(InputGroupCallId input_group_call_id, uint64 generation,
                                         tl_object_ptr<telegram_api::Updates> &&updates, Promise<Unit> &&promise);
 
+  void process_join_group_call_presentation_response(InputGroupCallId input_group_call_id, uint64 generation,
+                                                     tl_object_ptr<telegram_api::Updates> &&updates, Status status);
+
  private:
   struct GroupCall;
   struct GroupCallParticipants;
@@ -130,7 +151,7 @@ class GroupCallManager : public Actor {
   static constexpr int32 CHECK_GROUP_CALL_IS_JOINED_TIMEOUT = 10;
   static constexpr size_t MAX_TITLE_LENGTH = 64;  // server side limit for group call/call record title length
 
-  void tear_down() override;
+  void tear_down() final;
 
   static void on_update_group_call_participant_order_timeout_callback(void *group_call_manager_ptr,
                                                                       int64 group_call_id_int);
@@ -185,11 +206,21 @@ class GroupCallManager : public Actor {
 
   static bool get_group_call_start_subscribed(const GroupCall *group_call);
 
+  static bool get_group_call_is_my_video_paused(const GroupCall *group_call);
+
+  static bool get_group_call_is_my_video_enabled(const GroupCall *group_call);
+
+  static bool get_group_call_is_my_presentation_paused(const GroupCall *group_call);
+
   static bool get_group_call_mute_new_participants(const GroupCall *group_call);
 
   static int32 get_group_call_record_start_date(const GroupCall *group_call);
 
+  static bool get_group_call_is_video_recorded(const GroupCall *group_call);
+
   static bool get_group_call_has_recording(const GroupCall *group_call);
+
+  static bool get_group_call_can_enable_video(const GroupCall *group_call);
 
   bool need_group_call_participants(InputGroupCallId input_group_call_id) const;
 
@@ -199,7 +230,8 @@ class GroupCallManager : public Actor {
 
   void sync_group_call_participants(InputGroupCallId input_group_call_id);
 
-  void on_sync_group_call_participants_failed(InputGroupCallId input_group_call_id);
+  void on_sync_group_call_participants(InputGroupCallId input_group_call_id,
+                                       Result<tl_object_ptr<telegram_api::phone_groupCall>> &&result);
 
   GroupCallParticipantOrder get_real_participant_order(bool can_self_unmute, const GroupCallParticipant &participant,
                                                        const GroupCallParticipants *participants) const;
@@ -216,7 +248,12 @@ class GroupCallManager : public Actor {
   void update_group_call_participants_can_be_muted(InputGroupCallId input_group_call_id, bool can_manage,
                                                    GroupCallParticipants *participants);
 
-  int process_group_call_participant(InputGroupCallId group_call_id, GroupCallParticipant &&participant);
+  void update_group_call_participants_order(InputGroupCallId input_group_call_id, bool can_self_unmute,
+                                            GroupCallParticipants *participants, const char *source);
+
+  // returns participant_count_diff and video_participant_count_diff
+  std::pair<int32, int32> process_group_call_participant(InputGroupCallId group_call_id,
+                                                         GroupCallParticipant &&participant);
 
   void on_add_group_call_participant(InputGroupCallId input_group_call_id, DialogId participant_dialog_id);
 
@@ -227,6 +264,8 @@ class GroupCallManager : public Actor {
   void finish_load_group_call_administrators(InputGroupCallId input_group_call_id, Result<DialogParticipants> &&result);
 
   int32 cancel_join_group_call_request(InputGroupCallId input_group_call_id);
+
+  int32 cancel_join_group_call_presentation_request(InputGroupCallId input_group_call_id);
 
   bool on_join_group_call_response(InputGroupCallId input_group_call_id, string json_response);
 
@@ -250,6 +289,24 @@ class GroupCallManager : public Actor {
   void on_toggle_group_call_start_subscription(InputGroupCallId input_group_call_id, bool start_subscribed,
                                                Result<Unit> &&result);
 
+  void send_toggle_group_call_is_my_video_paused_query(InputGroupCallId input_group_call_id, DialogId as_dialog_id,
+                                                       bool is_my_video_paused);
+
+  void on_toggle_group_call_is_my_video_paused(InputGroupCallId input_group_call_id, bool is_my_video_paused,
+                                               Result<Unit> &&result);
+
+  void send_toggle_group_call_is_my_video_enabled_query(InputGroupCallId input_group_call_id, DialogId as_dialog_id,
+                                                        bool is_my_video_enabled);
+
+  void on_toggle_group_call_is_my_video_enabled(InputGroupCallId input_group_call_id, bool is_my_video_enabled,
+                                                Result<Unit> &&result);
+
+  void send_toggle_group_call_is_my_presentation_paused_query(InputGroupCallId input_group_call_id,
+                                                              DialogId as_dialog_id, bool is_my_presentation_paused);
+
+  void on_toggle_group_call_is_my_presentation_paused(InputGroupCallId input_group_call_id,
+                                                      bool is_my_presentation_paused, Result<Unit> &&result);
+
   void send_toggle_group_call_mute_new_participants_query(InputGroupCallId input_group_call_id,
                                                           bool mute_new_participants);
 
@@ -257,7 +314,8 @@ class GroupCallManager : public Actor {
                                                   Result<Unit> &&result);
 
   void send_toggle_group_call_recording_query(InputGroupCallId input_group_call_id, bool is_enabled,
-                                              const string &title, uint64 generation);
+                                              const string &title, bool record_video, bool use_portrait_orientation,
+                                              uint64 generation);
 
   void on_toggle_group_call_recording(InputGroupCallId input_group_call_id, uint64 generation, Result<Unit> &&result);
 
@@ -288,13 +346,12 @@ class GroupCallManager : public Actor {
   DialogId set_group_call_participant_is_speaking_by_source(InputGroupCallId input_group_call_id, int32 audio_source,
                                                             bool is_speaking, int32 date);
 
-  static Result<td_api::object_ptr<td_api::GroupCallJoinResponse>> get_group_call_join_response_object(
-      string json_response);
-
   bool try_clear_group_call_participants(InputGroupCallId input_group_call_id);
 
   bool set_group_call_participant_count(GroupCall *group_call, int32 count, const char *source,
                                         bool force_update = false);
+
+  bool set_group_call_unmuted_video_count(GroupCall *group_call, int32 count, const char *source);
 
   void update_group_call_dialog(const GroupCall *group_call, const char *source, bool force);
 
@@ -327,6 +384,8 @@ class GroupCallManager : public Actor {
 
   std::unordered_map<InputGroupCallId, unique_ptr<GroupCall>, InputGroupCallIdHash> group_calls_;
 
+  string pending_group_call_join_params_;
+
   std::unordered_map<InputGroupCallId, unique_ptr<GroupCallParticipants>, InputGroupCallIdHash>
       group_call_participants_;
   std::unordered_map<DialogId, vector<InputGroupCallId>, DialogIdHash> participant_id_to_group_call_id_;
@@ -337,6 +396,8 @@ class GroupCallManager : public Actor {
       load_group_call_queries_;
 
   std::unordered_map<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash> pending_join_requests_;
+  std::unordered_map<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash>
+      pending_join_presentation_requests_;
   uint64 join_group_request_generation_ = 0;
 
   uint64 toggle_recording_generation_ = 0;

@@ -22,12 +22,15 @@
 
 namespace td {
 
-Game::Game(Td *td, tl_object_ptr<telegram_api::game> &&game, DialogId owner_dialog_id)
+Game::Game(Td *td, UserId bot_user_id, tl_object_ptr<telegram_api::game> &&game, FormattedText text,
+           DialogId owner_dialog_id)
     : Game(td, std::move(game->title_), std::move(game->description_), std::move(game->photo_),
            std::move(game->document_), owner_dialog_id) {
   id_ = game->id_;
   access_hash_ = game->access_hash_;
+  bot_user_id_ = bot_user_id.is_valid() ? bot_user_id : UserId();
   short_name_ = game->short_name_;
+  text_ = std::move(text);
 }
 
 Game::Game(Td *td, string title, string description, tl_object_ptr<telegram_api::Photo> &&photo,
@@ -61,16 +64,8 @@ Game::Game(UserId bot_user_id, string short_name) : bot_user_id_(bot_user_id), s
   photo_.id = 0;  // to prevent null photo in td_api
 }
 
-bool Game::empty() const {
+bool Game::is_empty() const {
   return short_name_.empty();
-}
-
-void Game::set_bot_user_id(UserId bot_user_id) {
-  if (bot_user_id.is_valid()) {
-    bot_user_id_ = bot_user_id;
-  } else {
-    bot_user_id_ = UserId();
-  }
 }
 
 UserId Game::get_bot_user_id() const {
@@ -83,19 +78,14 @@ vector<FileId> Game::get_file_ids(const Td *td) const {
   return result;
 }
 
-void Game::set_text(FormattedText &&text) {
-  text_ = std::move(text);
-}
-
 const FormattedText &Game::get_text() const {
   return text_;
 }
 
-tl_object_ptr<td_api::game> Game::get_game_object(Td *td) const {
-  return make_tl_object<td_api::game>(
-      id_, short_name_, title_, get_formatted_text_object(text_), description_,
-      get_photo_object(td->file_manager_.get(), photo_),
-      td->animations_manager_->get_animation_object(animation_file_id_, "get_game_object"));
+tl_object_ptr<td_api::game> Game::get_game_object(Td *td, bool skip_bot_commands) const {
+  return make_tl_object<td_api::game>(id_, short_name_, title_, get_formatted_text_object(text_, skip_bot_commands, -1),
+                                      description_, get_photo_object(td->file_manager_.get(), photo_),
+                                      td->animations_manager_->get_animation_object(animation_file_id_));
 }
 
 bool Game::has_input_media() const {

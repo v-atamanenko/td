@@ -11,7 +11,7 @@
 #include "td/mtproto/ProxySecret.h"
 #include "td/mtproto/Transport.h"
 
-#if TD_EXPERIMENTAL_WATCH_OS
+#if TD_DARWIN_WATCH_OS
 #include "td/net/DarwinHttp.h"
 #endif
 
@@ -26,14 +26,14 @@
 #include "td/utils/Status.h"
 #include "td/utils/StorerBase.h"
 
-#include <map>
 #include <memory>
+#include <unordered_map>
 #include <utility>
 
 namespace td {
 namespace mtproto {
 
-class RawConnectionDefault : public RawConnection {
+class RawConnectionDefault final : public RawConnection {
  public:
   RawConnectionDefault(SocketFd socket_fd, TransportType transport_type, unique_ptr<StatsCallback> stats_callback)
       : socket_fd_(std::move(socket_fd))
@@ -42,18 +42,18 @@ class RawConnectionDefault : public RawConnection {
     transport_->init(&socket_fd_.input_buffer(), &socket_fd_.output_buffer());
   }
 
-  void set_connection_token(StateManager::ConnectionToken connection_token) override {
+  void set_connection_token(ConnectionManager::ConnectionToken connection_token) final {
     connection_token_ = std::move(connection_token);
   }
 
-  bool can_send() const override {
+  bool can_send() const final {
     return transport_->can_write();
   }
-  TransportType get_transport_type() const override {
+  TransportType get_transport_type() const final {
     return transport_->get_type();
   }
   void send_crypto(const Storer &storer, int64 session_id, int64 salt, const AuthKey &auth_key,
-                   uint64 quick_ack_token) override {
+                   uint64 quick_ack_token) final {
     PacketInfo info;
     info.version = 2;
     info.no_crypto_flag = false;
@@ -78,7 +78,7 @@ class RawConnectionDefault : public RawConnection {
     transport_->write(std::move(packet), use_quick_ack);
   }
 
-  uint64 send_no_crypto(const Storer &storer) override {
+  uint64 send_no_crypto(const Storer &storer) final {
     PacketInfo info;
 
     info.no_crypto_flag = true;
@@ -90,16 +90,16 @@ class RawConnectionDefault : public RawConnection {
     return info.message_id;
   }
 
-  PollableFdInfo &get_poll_info() override {
+  PollableFdInfo &get_poll_info() final {
     return socket_fd_.get_poll_info();
   }
 
-  StatsCallback *stats_callback() override {
+  StatsCallback *stats_callback() final {
     return stats_callback_.get();
   }
 
   // NB: After first returned error, all subsequent calls will return error too.
-  Status flush(const AuthKey &auth_key, Callback &callback) override {
+  Status flush(const AuthKey &auth_key, Callback &callback) final {
     auto status = do_flush(auth_key, callback);
     if (status.is_error()) {
       if (stats_callback_ && status.code() != 2) {
@@ -110,19 +110,19 @@ class RawConnectionDefault : public RawConnection {
     return status;
   }
 
-  bool has_error() const override {
+  bool has_error() const final {
     return has_error_;
   }
 
-  void close() override {
+  void close() final {
     transport_.reset();
     socket_fd_.close();
   }
 
-  PublicFields &extra() override {
+  PublicFields &extra() final {
     return extra_;
   }
-  const PublicFields &extra() const override {
+  const PublicFields &extra() const final {
     return extra_;
   }
 
@@ -130,12 +130,12 @@ class RawConnectionDefault : public RawConnection {
   PublicFields extra_;
   BufferedFd<SocketFd> socket_fd_;
   unique_ptr<IStreamTransport> transport_;
-  std::map<uint32, uint64> quick_ack_to_token_;
+  std::unordered_map<uint32, uint64> quick_ack_to_token_;
   bool has_error_{false};
 
   unique_ptr<StatsCallback> stats_callback_;
 
-  StateManager::ConnectionToken connection_token_;
+  ConnectionManager::ConnectionToken connection_token_;
 
   Status flush_read(const AuthKey &auth_key, Callback &callback) {
     auto r = socket_fd_.flush_read();
@@ -259,8 +259,8 @@ class RawConnectionDefault : public RawConnection {
   }
 };
 
-#if TD_EXPERIMENTAL_WATCH_OS
-class RawConnectionHttp : public RawConnection {
+#if TD_DARWIN_WATCH_OS
+class RawConnectionHttp final : public RawConnection {
  public:
   RawConnectionHttp(IPAddress ip_address, unique_ptr<StatsCallback> stats_callback)
       : ip_address_(std::move(ip_address)), stats_callback_(std::move(stats_callback)) {
@@ -268,18 +268,18 @@ class RawConnectionHttp : public RawConnection {
     answers_->init();
   }
 
-  void set_connection_token(StateManager::ConnectionToken connection_token) override {
+  void set_connection_token(ConnectionManager::ConnectionToken connection_token) final {
     connection_token_ = std::move(connection_token);
   }
 
-  bool can_send() const override {
+  bool can_send() const final {
     return mode_ == Send;
   }
-  TransportType get_transport_type() const override {
+  TransportType get_transport_type() const final {
     return mtproto::TransportType{mtproto::TransportType::Http, 0, mtproto::ProxySecret()};
   }
   void send_crypto(const Storer &storer, int64 session_id, int64 salt, const AuthKey &auth_key,
-                   uint64 quick_ack_token) override {
+                   uint64 quick_ack_token) final {
     PacketInfo info;
     info.version = 2;
     info.no_crypto_flag = false;
@@ -293,7 +293,7 @@ class RawConnectionHttp : public RawConnection {
     send_packet(packet.as_buffer_slice());
   }
 
-  uint64 send_no_crypto(const Storer &storer) override {
+  uint64 send_no_crypto(const Storer &storer) final {
     PacketInfo info;
 
     info.no_crypto_flag = true;
@@ -304,16 +304,16 @@ class RawConnectionHttp : public RawConnection {
     return info.message_id;
   }
 
-  PollableFdInfo &get_poll_info() override {
+  PollableFdInfo &get_poll_info() final {
     return answers_->reader_get_event_fd().get_poll_info();
   }
 
-  StatsCallback *stats_callback() override {
+  StatsCallback *stats_callback() final {
     return stats_callback_.get();
   }
 
   // NB: After first returned error, all subsequent calls will return error too.
-  Status flush(const AuthKey &auth_key, Callback &callback) override {
+  Status flush(const AuthKey &auth_key, Callback &callback) final {
     auto status = do_flush(auth_key, callback);
     if (status.is_error()) {
       if (stats_callback_ && status.code() != 2) {
@@ -324,17 +324,17 @@ class RawConnectionHttp : public RawConnection {
     return status;
   }
 
-  bool has_error() const override {
+  bool has_error() const final {
     return has_error_;
   }
 
-  void close() override {
+  void close() final {
   }
 
-  PublicFields &extra() override {
+  PublicFields &extra() final {
     return extra_;
   }
-  const PublicFields &extra() const override {
+  const PublicFields &extra() const final {
     return extra_;
   }
 
@@ -348,7 +348,7 @@ class RawConnectionHttp : public RawConnection {
 
   unique_ptr<StatsCallback> stats_callback_;
 
-  StateManager::ConnectionToken connection_token_;
+  ConnectionManager::ConnectionToken connection_token_;
   std::shared_ptr<MpscPollableQueue<Result<BufferSlice>>> answers_;
   std::vector<BufferSlice> to_send_;
 
@@ -452,7 +452,7 @@ class RawConnectionHttp : public RawConnection {
 
 unique_ptr<RawConnection> RawConnection::create(IPAddress ip_address, SocketFd socket_fd, TransportType transport_type,
                                                 unique_ptr<StatsCallback> stats_callback) {
-#if TD_EXPERIMENTAL_WATCH_OS
+#if TD_DARWIN_WATCH_OS
   return td::make_unique<RawConnectionHttp>(ip_address, std::move(stats_callback));
 #else
   return td::make_unique<RawConnectionDefault>(std::move(socket_fd), transport_type, std::move(stats_callback));

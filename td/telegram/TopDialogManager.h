@@ -6,13 +6,11 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
+#include "td/telegram/TopDialogCategory.h"
+
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
-
-#include "td/telegram/DialogId.h"
-#include "td/telegram/net/NetQuery.h"
-#include "td/telegram/telegram_api.h"
-#include "td/telegram/TopDialogCategory.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Time.h"
@@ -22,18 +20,20 @@
 
 namespace td {
 
-class TopDialogManager : public NetQueryCallback {
+class Td;
+
+class TopDialogManager final : public Actor {
  public:
-  explicit TopDialogManager(ActorShared<> parent) : parent_(std::move(parent)) {
+  TopDialogManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::move(parent)) {
   }
 
-  void do_start_up();
+  void init();
 
   void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date);
 
-  void remove_dialog(TopDialogCategory category, DialogId dialog_id, tl_object_ptr<telegram_api::InputPeer> input_peer);
+  void remove_dialog(TopDialogCategory category, DialogId dialog_id, Promise<Unit> &&promise);
 
-  void get_top_dialogs(TopDialogCategory category, size_t limit, Promise<vector<DialogId>> promise);
+  void get_top_dialogs(TopDialogCategory category, int32 limit, Promise<vector<DialogId>> promise);
 
   void update_rating_e_decay();
 
@@ -44,14 +44,15 @@ class TopDialogManager : public NetQueryCallback {
   static constexpr int32 SERVER_SYNC_DELAY = 86400;      // seconds
   static constexpr int32 SERVER_SYNC_RESEND_DELAY = 60;  // seconds
   static constexpr int32 DB_SYNC_DELAY = 5;              // seconds
+
+  Td *td_;
   ActorShared<> parent_;
 
-  bool is_active_{false};
-  bool is_enabled_{true};
+  bool is_active_ = false;
+  bool is_enabled_ = true;
   int32 rating_e_decay_ = 241920;
 
   bool have_toggle_top_peers_query_ = false;
-  bool toggle_top_peers_query_is_enabled_ = false;
   bool have_pending_toggle_top_peers_query_ = false;
   bool pending_toggle_top_peers_query_ = false;
   bool was_first_sync_{false};
@@ -97,21 +98,30 @@ class TopDialogManager : public NetQueryCallback {
   void normalize_rating();
 
   bool set_is_enabled(bool is_enabled);
+
   void send_toggle_top_peers(bool is_enabled);
+
+  void on_toggle_top_peers(bool is_enabled, Result<Unit> &&result);
 
   void do_get_top_dialogs(GetTopDialogsQuery &&query);
 
+  void on_load_dialogs(GetTopDialogsQuery &&query, vector<DialogId> &&dialog_ids);
+
   void do_get_top_peers();
+
   void do_save_top_dialogs();
 
   void on_first_sync();
 
-  void on_result(NetQueryPtr net_query) override;
+  void on_get_top_peers(Result<telegram_api::object_ptr<telegram_api::contacts_TopPeers>> result);
 
-  void init();
+  void try_start();
 
-  void start_up() override;
-  void loop() override;
+  void start_up() final;
+
+  void loop() final;
+
+  void tear_down() final;
 };
 
 }  // namespace td

@@ -122,28 +122,28 @@ StringBuilder &operator<<(StringBuilder &string_builder, const TQueue::EventId i
 struct BinlogEvent;
 
 template <class BinlogT>
-class TQueueBinlog : public TQueue::StorageCallback {
+class TQueueBinlog final : public TQueue::StorageCallback {
  public:
-  uint64 push(QueueId queue_id, const RawEvent &event) override;
-  void pop(uint64 log_event_id) override;
+  uint64 push(QueueId queue_id, const RawEvent &event) final;
+  void pop(uint64 log_event_id) final;
   Status replay(const BinlogEvent &binlog_event, TQueue &q) const TD_WARN_UNUSED_RESULT;
 
   void set_binlog(std::shared_ptr<BinlogT> binlog) {
     binlog_ = std::move(binlog);
   }
-  virtual void close(Promise<> promise) override;
+  virtual void close(Promise<> promise) final;
 
  private:
   std::shared_ptr<BinlogT> binlog_;
   static constexpr int32 BINLOG_EVENT_TYPE = 2314;
 };
 
-class TQueueMemoryStorage : public TQueue::StorageCallback {
+class TQueueMemoryStorage final : public TQueue::StorageCallback {
  public:
-  uint64 push(QueueId queue_id, const RawEvent &event) override;
-  void pop(uint64 log_event_id) override;
+  uint64 push(QueueId queue_id, const RawEvent &event) final;
+  void pop(uint64 log_event_id) final;
   void replay(TQueue &q) const;
-  virtual void close(Promise<> promise) override;
+  virtual void close(Promise<> promise) final;
 
  private:
   uint64 next_log_event_id_{1};

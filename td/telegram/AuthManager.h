@@ -23,7 +23,7 @@
 
 namespace td {
 
-class AuthManager : public NetActor {
+class AuthManager final : public NetActor {
  public:
   AuthManager(int32 api_id, const string &api_hash, ActorShared<> parent);
 
@@ -42,13 +42,14 @@ class AuthManager : public NetActor {
   void check_bot_token(uint64 query_id, string bot_token);
   void check_password(uint64 query_id, string password);
   void request_password_recovery(uint64 query_id);
-  void recover_password(uint64 query_id, string code);
+  void check_password_recovery_code(uint64 query_id, string code);
+  void recover_password(uint64 query_id, string code, string new_password, string new_hint);
   void log_out(uint64 query_id);
   void delete_account(uint64 query_id, const string &reason);
 
   void on_update_login_token();
 
-  void on_authorization_lost();
+  void on_authorization_lost(const string &source);
   void on_closing(bool destroy_flag);
 
   // can return nullptr if state isn't initialized yet
@@ -79,6 +80,7 @@ class AuthManager : public NetActor {
     GetPassword,
     CheckPassword,
     RequestPasswordRecovery,
+    CheckPasswordRecoveryCode,
     RecoverPassword,
     BotAuthentication,
     Authentication,
@@ -197,6 +199,10 @@ class AuthManager : public NetActor {
 
   WaitPasswordState wait_password_state_;
 
+  string recovery_code_;
+  string new_password_;
+  string new_hint_;
+
   int32 login_code_retry_delay_ = 0;
   Timeout poll_export_login_code_timeout_;
 
@@ -225,20 +231,21 @@ class AuthManager : public NetActor {
   void on_request_qr_code_result(NetQueryPtr &result, bool is_import);
   void on_get_password_result(NetQueryPtr &result);
   void on_request_password_recovery_result(NetQueryPtr &result);
+  void on_check_password_recovery_code_result(NetQueryPtr &result);
   void on_authentication_result(NetQueryPtr &result, bool expected_flag);
   void on_log_out_result(NetQueryPtr &result);
   void on_delete_account_result(NetQueryPtr &result);
   void on_get_login_token(tl_object_ptr<telegram_api::auth_LoginToken> login_token);
   void on_get_authorization(tl_object_ptr<telegram_api::auth_Authorization> auth_ptr);
 
-  void on_result(NetQueryPtr result) override;
+  void on_result(NetQueryPtr result) final;
 
   void update_state(State new_state, bool force = false, bool should_save_state = true);
   tl_object_ptr<td_api::AuthorizationState> get_authorization_state_object(State authorization_state) const;
   void send_ok(uint64 query_id);
 
-  void start_up() override;
-  void tear_down() override;
+  void start_up() final;
+  void tear_down() final;
 };
 
 }  // namespace td

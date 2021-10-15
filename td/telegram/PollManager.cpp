@@ -23,6 +23,7 @@
 #include "td/telegram/StateManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/TdParameters.h"
 #include "td/telegram/telegram_api.hpp"
 #include "td/telegram/UpdatesManager.h"
 
@@ -48,7 +49,7 @@
 
 namespace td {
 
-class GetPollResultsQuery : public Td::ResultHandler {
+class GetPollResultsQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<telegram_api::Updates>> promise_;
   PollId poll_id_;
   DialogId dialog_id_;
@@ -71,7 +72,7 @@ class GetPollResultsQuery : public Td::ResultHandler {
         G()->net_query_creator().create(telegram_api::messages_getPollResults(std::move(input_peer), message_id)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_getPollResults>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -80,7 +81,7 @@ class GetPollResultsQuery : public Td::ResultHandler {
     promise_.set_value(result_ptr.move_as_ok());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     if (!td->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPollResultsQuery") &&
         status.message() != "MESSAGE_ID_INVALID") {
       LOG(ERROR) << "Receive " << status << ", while trying to get results of " << poll_id_;
@@ -89,7 +90,7 @@ class GetPollResultsQuery : public Td::ResultHandler {
   }
 };
 
-class GetPollVotersQuery : public Td::ResultHandler {
+class GetPollVotersQuery final : public Td::ResultHandler {
   Promise<tl_object_ptr<telegram_api::messages_votesList>> promise_;
   PollId poll_id_;
   DialogId dialog_id_;
@@ -119,7 +120,7 @@ class GetPollVotersQuery : public Td::ResultHandler {
         flags, std::move(input_peer), message_id, std::move(option), offset, limit)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_getPollVotes>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -128,7 +129,7 @@ class GetPollVotersQuery : public Td::ResultHandler {
     promise_.set_value(result_ptr.move_as_ok());
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     if (!td->messages_manager_->on_get_dialog_error(dialog_id_, status, "GetPollVotersQuery") &&
         status.message() != "MESSAGE_ID_INVALID") {
       LOG(ERROR) << "Receive " << status << ", while trying to get voters of " << poll_id_;
@@ -137,7 +138,7 @@ class GetPollVotersQuery : public Td::ResultHandler {
   }
 };
 
-class SetPollAnswerActor : public NetActorOnce {
+class SetPollAnswerActor final : public NetActorOnce {
   Promise<tl_object_ptr<telegram_api::Updates>> promise_;
   DialogId dialog_id_;
 
@@ -162,7 +163,7 @@ class SetPollAnswerActor : public NetActorOnce {
                  std::move(query), actor_shared(this), sequence_id);
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_sendVote>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -173,13 +174,13 @@ class SetPollAnswerActor : public NetActorOnce {
     promise_.set_value(std::move(result));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     td->messages_manager_->on_get_dialog_error(dialog_id_, status, "SetPollAnswerActor");
     promise_.set_error(std::move(status));
   }
 };
 
-class StopPollActor : public NetActorOnce {
+class StopPollActor final : public NetActorOnce {
   Promise<Unit> promise_;
   DialogId dialog_id_;
 
@@ -218,7 +219,7 @@ class StopPollActor : public NetActorOnce {
     }
   }
 
-  void on_result(uint64 id, BufferSlice packet) override {
+  void on_result(uint64 id, BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_editMessage>(packet);
     if (result_ptr.is_error()) {
       return on_error(id, result_ptr.move_as_error());
@@ -229,7 +230,7 @@ class StopPollActor : public NetActorOnce {
     td->updates_manager_->on_get_updates(std::move(result), std::move(promise_));
   }
 
-  void on_error(uint64 id, Status status) override {
+  void on_error(uint64 id, Status status) final {
     if (!td->auth_manager_->is_bot() && status.message() == "MESSAGE_NOT_MODIFIED") {
       return promise_.set_value(Unit());
     }
@@ -247,11 +248,11 @@ PollManager::PollManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::m
 }
 
 void PollManager::start_up() {
-  class StateCallback : public StateManager::Callback {
+  class StateCallback final : public StateManager::Callback {
    public:
     explicit StateCallback(ActorId<PollManager> parent) : parent_(std::move(parent)) {
     }
-    bool on_online(bool is_online) override {
+    bool on_online(bool is_online) final {
       if (is_online) {
         send_closure(parent_, &PollManager::on_online);
       }
@@ -557,7 +558,8 @@ td_api::object_ptr<td_api::poll> PollManager::get_poll_object(PollId poll_id, co
   if (poll->is_quiz) {
     auto correct_option_id = is_local_poll_id(poll_id) ? -1 : poll->correct_option_id;
     poll_type = td_api::make_object<td_api::pollTypeQuiz>(
-        correct_option_id, get_formatted_text_object(is_local_poll_id(poll_id) ? FormattedText() : poll->explanation));
+        correct_option_id,
+        get_formatted_text_object(is_local_poll_id(poll_id) ? FormattedText() : poll->explanation, true, -1));
   } else {
     poll_type = td_api::make_object<td_api::pollTypeRegular>(poll->allow_multiple_answers);
   }
@@ -574,6 +576,10 @@ td_api::object_ptr<td_api::poll> PollManager::get_poll_object(PollId poll_id, co
     } else {
       open_period = close_date - now;
     }
+  }
+  if (poll->is_closed) {
+    open_period = 0;
+    close_date = 0;
   }
   return td_api::make_object<td_api::poll>(
       poll_id.get(), poll->question, std::move(poll_options), total_voter_count,
@@ -1245,6 +1251,18 @@ void PollManager::on_online() {
   }
 }
 
+PollId PollManager::dup_poll(PollId poll_id) {
+  auto poll = get_poll(poll_id);
+  CHECK(poll != nullptr);
+
+  auto question = poll->question;
+  auto options = transform(poll->options, [](auto &option) { return option.text; });
+  auto explanation = poll->explanation;
+  return create_poll(std::move(question), std::move(options), poll->is_anonymous, poll->allow_multiple_answers,
+                     poll->is_quiz, poll->correct_option_id, std::move(explanation), poll->open_period,
+                     poll->open_period == 0 ? 0 : G()->unix_time(), false);
+}
+
 bool PollManager::has_input_media(PollId poll_id) const {
   auto poll = get_poll(poll_id);
   CHECK(poll != nullptr);
@@ -1345,6 +1363,7 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
 
   auto poll = get_poll_force(poll_id);
   bool is_changed = false;
+  bool need_save_to_database = false;
   if (poll == nullptr) {
     if (poll_server == nullptr) {
       LOG(INFO) << "Ignore " << poll_id << ", because have no data about it";
@@ -1427,13 +1446,16 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
     }
     if (open_period != poll->open_period) {
       poll->open_period = open_period;
-      is_changed = true;
+      if (!poll->is_closed) {
+        is_changed = true;
+      } else {
+        need_save_to_database = true;
+      }
     }
     if (close_date != poll->close_date) {
       poll->close_date = close_date;
-      is_changed = true;
-
       if (!poll->is_closed) {
+        is_changed = true;
         if (close_date != 0) {
           if (close_date <= G()->server_time()) {
             poll->is_closed = true;
@@ -1443,6 +1465,8 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
         } else {
           close_poll_timeout_.cancel_timeout(poll_id.get());
         }
+      } else {
+        need_save_to_database = true;
       }
     }
     bool is_anonymous = (poll_server->flags_ & telegram_api::poll::PUBLIC_VOTERS_MASK) == 0;
@@ -1543,12 +1567,12 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
 
   auto entities =
       get_message_entities(td_->contacts_manager_.get(), std::move(poll_results->solution_entities_), "on_get_poll");
-  auto status = fix_formatted_text(poll_results->solution_, entities, true, true, true, false);
+  auto status = fix_formatted_text(poll_results->solution_, entities, true, true, true, true, false);
   if (status.is_error()) {
     if (!clean_input_string(poll_results->solution_)) {
       poll_results->solution_.clear();
     }
-    entities = find_entities(poll_results->solution_, true);
+    entities = find_entities(poll_results->solution_, true, true);
   }
   FormattedText explanation{std::move(poll_results->solution_), std::move(entities)};
 
@@ -1607,6 +1631,8 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
   }
   if (is_changed) {
     notify_on_poll_update(poll_id);
+  }
+  if (is_changed || need_save_to_database) {
     save_poll(poll, poll_id);
   }
   if (need_update_poll && (is_changed || (poll->is_closed && being_closed_polls_.erase(poll_id) != 0))) {

@@ -13,7 +13,7 @@
 
 namespace td {
 
-class SleepActor : public Actor {
+class SleepActor final : public Actor {
  public:
   SleepActor(double timeout, Promise<> promise) : timeout_(timeout), promise_(std::move(promise)) {
   }
@@ -22,10 +22,10 @@ class SleepActor : public Actor {
   double timeout_;
   Promise<> promise_;
 
-  void start_up() override {
+  void start_up() final {
     set_timeout_in(timeout_);
   }
-  void timeout_expired() override {
+  void timeout_expired() final {
     promise_.set_value(Unit());
     stop();
   }

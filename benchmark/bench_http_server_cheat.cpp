@@ -4,12 +4,12 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#include "td/actor/actor.h"
-#include "td/actor/ConcurrentScheduler.h"
-
 #include "td/net/HttpHeaderCreator.h"
 #include "td/net/HttpInboundConnection.h"
 #include "td/net/TcpListener.h"
+
+#include "td/actor/actor.h"
+#include "td/actor/ConcurrentScheduler.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/logging.h"
@@ -24,7 +24,7 @@ namespace td {
 
 // HttpInboundConnection header
 static int cnt = 0;
-class HelloWorld : public Actor {
+class HelloWorld final : public Actor {
  public:
   explicit HelloWorld(SocketFd socket_fd) : socket_fd_(std::move(socket_fd)) {
   }
@@ -39,7 +39,7 @@ class HelloWorld : public Actor {
   std::string write_buf_;
   size_t write_pos_{0};
 
-  void start_up() override {
+  void start_up() final {
     Scheduler::subscribe(socket_fd_.get_poll_info().extract_pollable_fd(this));
     HttpHeaderCreator hc;
     Slice content = "hello world";
@@ -53,7 +53,7 @@ class HelloWorld : public Actor {
     hello_ = hc.finish(content).ok().str();
   }
 
-  void loop() override {
+  void loop() final {
     auto status = do_loop();
     if (status.is_error()) {
       Scheduler::unsubscribe(socket_fd_.get_poll_info().get_pollable_fd_ref());
@@ -98,18 +98,18 @@ class HelloWorld : public Actor {
   }
 };
 const int N = 0;
-class Server : public TcpListener::Callback {
+class Server final : public TcpListener::Callback {
  public:
-  void start_up() override {
+  void start_up() final {
     listener_ = create_actor<TcpListener>("Listener", 8082, ActorOwn<TcpListener::Callback>(actor_id(this)));
   }
-  void accept(SocketFd fd) override {
+  void accept(SocketFd fd) final {
     LOG(ERROR) << "ACCEPT " << cnt++;
     pos_++;
     auto scheduler_id = pos_ % (N != 0 ? N : 1) + (N != 0);
     create_actor_on_scheduler<HelloWorld>("HttpInboundConnection", scheduler_id, std::move(fd)).release();
   }
-  void hangup() override {
+  void hangup() final {
     // may be it should be default?..
     LOG(ERROR) << "Hanging up..";
     stop();

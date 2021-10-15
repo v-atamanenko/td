@@ -6,9 +6,6 @@
 //
 #include "td/telegram/Logging.h"
 
-#include "td/mtproto/SessionConnection.h"
-#include "td/mtproto/Transport.h"
-
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileGcWorker.h"
@@ -21,7 +18,10 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/UpdatesManager.h"
 
-#include "td/db/binlog/BinlogEvent.h"
+#include "td/mtproto/SessionConnection.h"
+#include "td/mtproto/Transport.h"
+
+#include "td/db/binlog/Binlog.h"
 #include "td/db/SqliteStatement.h"
 
 #include "td/net/GetHostByNameActor.h"
@@ -32,9 +32,9 @@
 #include "td/utils/algorithm.h"
 #include "td/utils/ExitGuard.h"
 #include "td/utils/FileLog.h"
-#include "td/utils/NullLog.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
+#include "td/utils/NullLog.h"
 #include "td/utils/port/detail/NativeFd.h"
 #include "td/utils/TsLog.h"
 

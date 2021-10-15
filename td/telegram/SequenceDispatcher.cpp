@@ -139,7 +139,8 @@ void SequenceDispatcher::on_result(NetQueryPtr query) {
   }
 
   if (query->is_error() && (query->error().code() == NetQuery::ResendInvokeAfter ||
-                            (query->error().code() == 400 && query->error().message() == "MSG_WAIT_FAILED"))) {
+                            (query->error().code() == 400 && (query->error().message() == "MSG_WAIT_FAILED" ||
+                                                              query->error().message() == "MSG_WAIT_TIMEOUT")))) {
     VLOG(net_query) << "Resend " << query;
     query->resend();
     query->debug("Waiting at SequenceDispatcher");
@@ -225,7 +226,7 @@ void SequenceDispatcher::tear_down() {
       continue;
     }
     data.state_ = State::Dummy;
-    data.query_->set_error(Status::Error(500, "Request aborted"));
+    data.query_->set_error(Global::request_aborted_error());
     do_finish(data);
   }
 }

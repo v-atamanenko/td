@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.0.2 FATAL_ERROR)
+if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
+  message(FATAL_ERROR "CMake >= 3.0.2 is required")
+endif()
 
 if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
   set(CMAKE_INSTALL_LIBDIR "lib")
@@ -46,7 +48,7 @@ set(TDNET_SOURCE
   td/net/Wget.h
 )
 
-if (TD_EXPERIMENTAL_WATCH_OS)
+if (APPLE_WATCH)
   set(TDNET_SOURCE
     ${TDNET_SOURCE}
     td/net/DarwinHttp.mm
@@ -75,7 +77,7 @@ if (WIN32)
   endif()
 endif()
 
-if (TD_EXPERIMENTAL_WATCH_OS)
+if (APPLE_WATCH)
   find_library(FOUNDATION_LIBRARY Foundation REQUIRED)
   target_link_libraries(tdnet PRIVATE ${FOUNDATION_LIBRARY})
 endif()

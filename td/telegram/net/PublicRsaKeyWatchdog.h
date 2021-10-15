@@ -24,7 +24,7 @@
 
 namespace td {
 
-class PublicRsaKeyWatchdog : public NetActor {
+class PublicRsaKeyWatchdog final : public NetActor {
  public:
   explicit PublicRsaKeyWatchdog(ActorShared<> parent);
 
@@ -36,11 +36,12 @@ class PublicRsaKeyWatchdog : public NetActor {
   tl_object_ptr<telegram_api::cdnConfig> cdn_config_;
   FloodControlStrict flood_control_;
   bool has_query_{false};
+  string current_version_;
 
-  void start_up() override;
-  void loop() override;
+  void start_up() final;
+  void loop() final;
 
-  void on_result(NetQueryPtr net_query) override;
+  void on_result(NetQueryPtr net_query) final;
   void sync(BufferSlice cdn_config_serialized);
   void sync_key(std::shared_ptr<PublicRsaKeyShared> &key);
 };

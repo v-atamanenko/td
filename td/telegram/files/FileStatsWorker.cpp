@@ -15,6 +15,7 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/TdParameters.h"
 
 #include "td/db/SqliteKeyValue.h"
 
@@ -146,8 +147,7 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
     split_by_owner_dialog_id = false;
   }
   if (!split_by_owner_dialog_id) {
-    FileStats file_stats;
-    file_stats.need_all_files = need_all_files;
+    FileStats file_stats(need_all_files, false);
     auto start = Time::now();
     scan_fs(token_, [&](FsFileInfo &fs_info) {
       FullFileInfo info;
@@ -161,7 +161,7 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
     auto passed = Time::now() - start;
     LOG_IF(INFO, passed > 0.5) << "Get file stats took: " << format::as_time(passed);
     if (token_) {
-      return promise.set_error(Status::Error(500, "Request aborted"));
+      return promise.set_error(Global::request_aborted_error());
     }
     promise.set_value(std::move(file_stats));
   } else {
@@ -182,7 +182,7 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
     });
 
     if (token_) {
-      return promise.set_error(Status::Error(500, "Request aborted"));
+      return promise.set_error(Global::request_aborted_error());
     }
 
     std::unordered_map<size_t, size_t> hash_to_pos;
@@ -191,7 +191,7 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
       hash_to_pos[std::hash<std::string>()(full_info.path)] = pos;
       pos++;
       if (token_) {
-        return promise.set_error(Status::Error(500, "Request aborted"));
+        return promise.set_error(Global::request_aborted_error());
       }
     }
     scan_db(token_, [&](DbFileInfo &db_info) {
@@ -203,16 +203,14 @@ void FileStatsWorker::get_stats(bool need_all_files, bool split_by_owner_dialog_
       full_infos[it->second].owner_dialog_id = db_info.owner_dialog_id;
     });
     if (token_) {
-      return promise.set_error(Status::Error(500, "Request aborted"));
+      return promise.set_error(Global::request_aborted_error());
     }
 
-    FileStats file_stats;
-    file_stats.need_all_files = need_all_files;
-    file_stats.split_by_owner_dialog_id = split_by_owner_dialog_id;
+    FileStats file_stats(need_all_files, split_by_owner_dialog_id);
     for (auto &full_info : full_infos) {
       file_stats.add(std::move(full_info));
       if (token_) {
-        return promise.set_error(Status::Error(500, "Request aborted"));
+        return promise.set_error(Global::request_aborted_error());
       }
     }
     auto passed = Time::now() - start;

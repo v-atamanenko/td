@@ -6,10 +6,10 @@
 //
 #pragma once
 
-#include "td/actor/SchedulerLocalStorage.h"
-
 #include "td/db/DbKey.h"
 #include "td/db/SqliteDb.h"
+
+#include "td/actor/SchedulerLocalStorage.h"
 
 #include "td/utils/common.h"
 #include "td/utils/optional.h"
@@ -19,7 +19,7 @@ namespace td {
 class SqliteConnectionSafe {
  public:
   SqliteConnectionSafe() = default;
-  explicit SqliteConnectionSafe(string path, DbKey key = DbKey::empty(), optional<int32> cipher_version = {});
+  SqliteConnectionSafe(string path, DbKey key, optional<int32> cipher_version = {});
 
   SqliteDb &get();
   void set(SqliteDb &&db);

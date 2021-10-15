@@ -6,13 +6,13 @@
 //
 #pragma once
 
-#include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
-
 #include "td/telegram/files/FileGcWorker.h"
 #include "td/telegram/files/FileStats.h"
 #include "td/telegram/files/FileStatsWorker.h"
 #include "td/telegram/td_api.h"
+
+#include "td/actor/actor.h"
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/CancellationToken.h"
 #include "td/utils/common.h"
@@ -29,7 +29,7 @@ struct DatabaseStats {
   tl_object_ptr<td_api::databaseStatistics> get_database_statistics_object() const;
 };
 
-class StorageManager : public Actor {
+class StorageManager final : public Actor {
  public:
   StorageManager(ActorShared<> parent, int32 scheduler_id);
   void get_storage_stats(bool need_all_files, int32 dialog_limit, Promise<FileStats> promise);
@@ -77,9 +77,9 @@ class StorageManager : public Actor {
   int32 ref_cnt_{1};
   bool is_closed_{false};
   ActorShared<> create_reference();
-  void start_up() override;
-  void hangup_shared() override;
-  void hangup() override;
+  void start_up() final;
+  void hangup_shared() final;
+  void hangup() final;
 
   // Gc
   ActorOwn<FileGcWorker> gc_worker_;
@@ -99,7 +99,7 @@ class StorageManager : public Actor {
   void save_last_gc_timestamp();
   void schedule_next_gc();
 
-  void timeout_expired() override;
+  void timeout_expired() final;
 };
 
 }  // namespace td

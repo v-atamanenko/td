@@ -8,6 +8,7 @@
 
 #include "td/telegram/DialogId.h"
 #include "td/telegram/GroupCallParticipantOrder.h"
+#include "td/telegram/GroupCallVideoPayload.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -21,7 +22,10 @@ class Td;
 struct GroupCallParticipant {
   DialogId dialog_id;
   string about;
+  GroupCallVideoPayload video_payload;
+  GroupCallVideoPayload presentation_payload;
   int32 audio_source = 0;
+  int32 presentation_audio_source = 0;
   int32 joined_date = 0;
   int32 active_date = 0;
   int32 volume_level = 10000;
@@ -41,6 +45,7 @@ struct GroupCallParticipant {
   bool is_fake = false;
   bool is_just_joined = false;
   bool is_speaking = false;
+  int32 video_diff = 0;
   int32 local_active_date = 0;
   GroupCallParticipantOrder order;
   int32 version = 0;
@@ -90,6 +95,8 @@ struct GroupCallParticipant {
   int32 get_volume_level() const;
 
   bool get_is_hand_raised() const;
+
+  int32 get_has_video() const;
 
   td_api::object_ptr<td_api::groupCallParticipant> get_group_call_participant_object(Td *td) const;
 };

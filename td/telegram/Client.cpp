@@ -21,6 +21,7 @@
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/port/RwMutex.h"
 #include "td/utils/port/thread.h"
+#include "td/utils/Slice.h"
 
 #include <algorithm>
 #include <atomic>
@@ -46,21 +47,21 @@ class TdReceiver {
   }
 
   unique_ptr<TdCallback> create_callback(ClientManager::ClientId client_id) {
-    class Callback : public TdCallback {
+    class Callback final : public TdCallback {
      public:
       Callback(ClientManager::ClientId client_id, TdReceiver *impl) : client_id_(client_id), impl_(impl) {
       }
-      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) override {
+      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) final {
         impl_->responses_.push({client_id_, id, std::move(result)});
       }
-      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) override {
+      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) final {
         impl_->responses_.push({client_id_, id, std::move(error)});
       }
       Callback(const Callback &) = delete;
       Callback &operator=(const Callback &) = delete;
       Callback(Callback &&) = delete;
       Callback &operator=(Callback &&) = delete;
-      ~Callback() override {
+      ~Callback() final {
         impl_->responses_.push({client_id_, 0, nullptr});
       }
 
@@ -230,7 +231,7 @@ class Client::Impl final {
 
 #else
 
-class MultiTd : public Actor {
+class MultiTd final : public Actor {
  public:
   explicit MultiTd(Td::Options options) : options_(std::move(options)) {
   }
@@ -286,22 +287,22 @@ class TdReceiver {
   }
 
   unique_ptr<TdCallback> create_callback(ClientManager::ClientId client_id) {
-    class Callback : public TdCallback {
+    class Callback final : public TdCallback {
      public:
       explicit Callback(ClientManager::ClientId client_id, std::shared_ptr<OutputQueue> output_queue)
           : client_id_(client_id), output_queue_(std::move(output_queue)) {
       }
-      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) override {
+      void on_result(uint64 id, td_api::object_ptr<td_api::Object> result) final {
         output_queue_->writer_put({client_id_, id, std::move(result)});
       }
-      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) override {
+      void on_error(uint64 id, td_api::object_ptr<td_api::error> error) final {
         output_queue_->writer_put({client_id_, id, std::move(error)});
       }
       Callback(const Callback &) = delete;
       Callback &operator=(const Callback &) = delete;
       Callback(Callback &&) = delete;
       Callback &operator=(Callback &&) = delete;
-      ~Callback() override {
+      ~Callback() final {
         output_queue_->writer_put({client_id_, 0, nullptr});
       }
 
@@ -340,9 +341,11 @@ class TdReceiver {
 
 class MultiImpl {
  public:
+  static constexpr int32 ADDITIONAL_THREAD_COUNT = 3;
+
   explicit MultiImpl(std::shared_ptr<NetQueryStats> net_query_stats) {
     concurrent_scheduler_ = std::make_shared<ConcurrentScheduler>();
-    concurrent_scheduler_->init(3);
+    concurrent_scheduler_->init(ADDITIONAL_THREAD_COUNT);
     concurrent_scheduler_->start();
 
     {
@@ -419,7 +422,8 @@ class MultiImplPool {
     if (impls_.empty()) {
       init_openssl_threads();
 
-      impls_.resize(clamp(thread::hardware_concurrency(), 8u, 24u) * 5 / 4);
+      impls_.resize(clamp(thread::hardware_concurrency(), 8u, 20u) * 5 / 4);
+      CHECK(impls_.size() * (1 + MultiImpl::ADDITIONAL_THREAD_COUNT + 1 /* IOCP */) < 128);
 
       net_query_stats_ = std::make_shared<NetQueryStats>();
     }
