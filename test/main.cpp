@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
   td::init_openssl_threads();
 
   td::TestsRunner &runner = td::TestsRunner::get_default();
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG));
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
 
   td::OptionParser options;
   options.add_option('f', "filter", "Run only specified tests",

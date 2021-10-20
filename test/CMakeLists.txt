@@ -14,7 +14,7 @@ if (__vita__)
 
   set(VITASDK "$ENV{VITASDK}")
 
-  include("${VITASDK}/share/vita.toolchain.cmake" REQUIRED)
+  include("${VITASDK}/share/vita.toolchain.force.cmake" REQUIRED)
   include("${VITASDK}/share/vita.cmake" REQUIRED)
 
   set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")

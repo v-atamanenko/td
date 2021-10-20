@@ -368,7 +368,7 @@ TEST(DB, key_value) {
     return; // Sqlite is not supported yet.
   #endif
 
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
   std::vector<std::string> keys;
   std::vector<std::string> values;
 
@@ -549,7 +549,7 @@ TEST(DB, persistent_key_value) {
   using KeyValue = BinlogKeyValue<ConcurrentBinlog>;
   // using KeyValue = PersistentKeyValue;
   // using KeyValue = SqliteKV;
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
   std::vector<std::string> keys;
   std::vector<std::string> values;
   CSlice path = "test_pmc";

@@ -3,6 +3,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <psp2/kernel/threadmgr.h>
+#include <psp2/io/fcntl.h>
 
 #include <cstdlib>
 #include <ctype.h>
@@ -26,16 +27,6 @@ char * realpath (const char *__restrict path, char *__restrict resolved_path) {
 
 int usleep(unsigned useconds) {
     return sceKernelDelayThread(useconds);
-}
-
-ssize_t pread (int __fd, void *__buf, size_t __nbytes, off_t __offset) {
- fprintf(stderr, "warn:pread");
-  return -1;
-}
-
-ssize_t pwrite (int __fd, const void *__buf, size_t __nbytes, off_t __offset) {
- fprintf(stderr, "warn:pwrite");
-  return -1;
 }
 
 int chdir (const char *__path) {

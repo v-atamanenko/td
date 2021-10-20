@@ -48,7 +48,7 @@
 using namespace td;
 
 TEST(Mtproto, GetHostByNameActor) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
   ConcurrentScheduler sched;
   int threads_n = 1;
   sched.init(threads_n);
@@ -414,6 +414,9 @@ class Mtproto_handshake final : public Test {
  public:
   using Test::Test;
   bool step() final {
+    #ifdef __vita__
+    return;
+    #endif
     if (!is_inited_) {
       sched_.init(0);
       sched_.create_actor_unsafe<HandshakeTestActor>(0, "HandshakeTestActor", get_default_dc_id(), &result_).release();
@@ -437,7 +440,9 @@ class Mtproto_handshake final : public Test {
   ConcurrentScheduler sched_;
   Status result_;
 };
+#ifndef __vita__
 RegisterTest<Mtproto_handshake> mtproto_handshake("Mtproto_handshake");
+#endif
 
 class Socks5TestActor final : public Actor {
  public:
@@ -633,6 +638,9 @@ class Mtproto_FastPing final : public Test {
  public:
   using Test::Test;
   bool step() final {
+    #ifdef __vita__
+    return;
+    #endif
     if (!is_inited_) {
       sched_.init(0);
       sched_.create_actor_unsafe<FastPingTestActor>(0, "FastPingTestActor", &result_).release();
@@ -656,7 +664,9 @@ class Mtproto_FastPing final : public Test {
   ConcurrentScheduler sched_;
   Status result_;
 };
+#ifndef __vita__
 RegisterTest<Mtproto_FastPing> mtproto_fastping("Mtproto_FastPing");
+#endif
 
 TEST(Mtproto, Grease) {
   std::string s(10000, '0');
@@ -670,7 +680,7 @@ TEST(Mtproto, Grease) {
 }
 
 TEST(Mtproto, TlsTransport) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
   ConcurrentScheduler sched;
   int threads_n = 1;
   sched.init(threads_n);
