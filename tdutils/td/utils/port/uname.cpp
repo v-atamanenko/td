@@ -51,7 +51,7 @@ static string read_os_name(CSlice os_version_file_path, CSlice prefix, CSlice su
         auto end_pos = r_file.ok().find(suffix.c_str(), begin_pos);
         if (end_pos != string::npos) {
           auto os_version = trim(r_file.ok().substr(begin_pos, end_pos - begin_pos));
-          if (os_version.find("\n") == string::npos) {
+          if (os_version.find('\n') == string::npos) {
             return os_version;
           }
         }
@@ -262,7 +262,7 @@ Slice get_operating_system_version() {
               }
               return "Windows Server 2016";
             }
-            if (os_version_info.dwBuildNumber >= 21900) { // build numbers between 21391 and 21999 aren't used
+            if (os_version_info.dwBuildNumber >= 21900) {  // build numbers between 21391 and 21999 aren't used
               return "Windows 11";
             }
             return "Windows 10";

@@ -136,7 +136,7 @@ class LambdaPromise : public PromiseInterface<ValueT> {
       , has_lambda_(true) {
   }
   template <class FromOkT>
-  LambdaPromise(FromOkT &&ok) : LambdaPromise(std::move(ok), Ignore(), true) {
+  LambdaPromise(FromOkT &&ok) : LambdaPromise(std::forward<FromOkT>(ok), Ignore(), true) {
   }
 
  private:
@@ -184,35 +184,29 @@ class SafePromise;
 template <class T = Unit>
 class Promise;
 
-constexpr std::false_type is_promise_interface(...) {
-  return {};
-}
+constexpr std::false_type is_promise_interface(...);
+
 template <class T>
-constexpr std::true_type is_promise_interface(const PromiseInterface<T> &promise) {
-  return {};
-}
+constexpr std::true_type is_promise_interface(const PromiseInterface<T> &promise);
+
 template <class T>
-constexpr std::true_type is_promise_interface(const Promise<T> &promise) {
-  return {};
-}
+constexpr std::true_type is_promise_interface(const Promise<T> &promise);
 
 template <class F>
 constexpr bool is_promise_interface() {
   return decltype(is_promise_interface(std::declval<F>()))::value;
 }
 
-constexpr std::false_type is_promise_interface_ptr(...) {
-  return {};
-}
+constexpr std::false_type is_promise_interface_ptr(...);
+
 template <class T>
-constexpr std::true_type is_promise_interface_ptr(const unique_ptr<T> &promise) {
-  return {};
-}
+constexpr std::true_type is_promise_interface_ptr(const unique_ptr<T> &promise);
 
 template <class F>
 constexpr bool is_promise_interface_ptr() {
   return decltype(is_promise_interface_ptr(std::declval<F>()))::value;
 }
+
 template <class T = void, class F = void, std::enable_if_t<std::is_same<T, void>::value, bool> has_t = false>
 auto lambda_promise(F &&f) {
   return detail::LambdaPromise<detail::drop_result_t<detail::get_arg_t<std::decay_t<F>>>, std::decay_t<F>>(
@@ -461,7 +455,7 @@ class SendClosure {
 template <class... ArgsT>
 auto promise_send_closure(ArgsT &&... args) {
   return [t = std::make_tuple(std::forward<ArgsT>(args)...)](auto &&res) mutable {
-    call_tuple(SendClosure(), std::tuple_cat(std::move(t), std::make_tuple(std::move(res))));
+    call_tuple(SendClosure(), std::tuple_cat(std::move(t), std::make_tuple(std::forward<decltype(res)>(res))));
   };
 }
 

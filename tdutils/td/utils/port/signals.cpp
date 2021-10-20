@@ -81,7 +81,7 @@ static void set_handler(struct sigaction &act, decltype(act.sa_sigaction) handle
   act.sa_flags |= SA_SIGINFO;
 }
 template <class F>
-static Status set_signal_handler_impl(vector<int> signals, F func) {
+static Status set_signal_handler_impl(vector<int> &&signals, F func) {
   struct sigaction act;
   std::memset(&act, '\0', sizeof(act));
 
@@ -142,7 +142,7 @@ static void signal_handler_func(int sig) {
   handler(sig);
 }
 
-static Status set_signal_handler_impl(vector<int> signals, void (*func)(int sig)) {
+static Status set_signal_handler_impl(vector<int> &&signals, void (*func)(int sig)) {
   for (auto signal : signals) {
     CHECK(0 <= signal && signal < NSIG);
     if (func != SIG_IGN && func != SIG_DFL) {
@@ -315,7 +315,7 @@ void signal_safe_write_signal_number(int sig, bool add_header) {
 }
 
 void signal_safe_write_pointer(void *p, bool add_header) {
-  std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(p);
+  auto addr = reinterpret_cast<std::uintptr_t>(p);
   char buf[100];
   char *end = buf + sizeof(buf);
   char *ptr = end;

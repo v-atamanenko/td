@@ -457,7 +457,7 @@ void CallActor::on_begin_exchanging_key() {
   call_state_.type = CallState::Type::ExchangingKey;
   call_state_need_flush_ = true;
   int64 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
-  double timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
+  auto timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
   LOG(INFO) << "Set call timeout to " << timeout;
   set_timeout_in(timeout);
 }
@@ -484,7 +484,7 @@ Status CallActor::do_update_call(telegram_api::phoneCall &call) {
       get_emojis_fingerprint(call_state_.key, is_outgoing_ ? dh_handshake_.get_g_b() : dh_handshake_.get_g_a());
 
   for (auto &connection : call.connections_) {
-    call_state_.connections.push_back(CallConnection(*connection));
+    call_state_.connections.emplace_back(*connection);
   }
   call_state_.protocol = CallProtocol(*call.protocol_);
   call_state_.allow_p2p = (call.flags_ & telegram_api::phoneCall::P2P_ALLOWED_MASK) != 0;
@@ -636,7 +636,7 @@ void CallActor::try_send_request_query() {
   auto query = G()->net_query_creator().create(tl_query);
   state_ = State::WaitRequestResult;
   int64 call_receive_timeout_ms = G()->shared_config().get_option_integer("call_receive_timeout_ms", 20000);
-  double timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
+  auto timeout = static_cast<double>(call_receive_timeout_ms) * 0.001;
   LOG(INFO) << "Set call timeout to " << timeout;
   set_timeout_in(timeout);
   query->total_timeout_limit_ = max(timeout, 10.0);
