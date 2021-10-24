@@ -23,72 +23,73 @@
 #include <psp2/net/http.h>
 #include <psp2/net/net.h>
 #include <psp2/net/netctl.h>
+
+#include <tdutils/td/utils/port/path.h>
 #endif
 
 #ifdef __vita__
-int _newlib_heap_size_user = 130 * 1024 * 1024;
+int _newlib_heap_size_user = 128 * 1024 * 1024;
 #endif
 
 int main(int argc, char **argv) {
 #ifdef __vita__
-  //TODO: mkdir ux0:data/td_test if not exists
-  SceNetInitParam param;
-  static char memory[8 * 1024 * 1024];
   int ret;
 
-  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-  if (ret < 0) {
-  printf("AAAA %x\n", ret);
+  if ((ret = sceSysmoduleLoadModule(SCE_SYSMODULE_NET)) < 0) {
+    fprintf(stderr, "SCE_SYSMODULE_NET loading failed: %x\n", ret);
     return 1;
   }
 
+  SceNetInitParam param;
+  static char memory[8 * 1024 * 1024];
   param.memory = memory;
   param.size = sizeof(memory);
   param.flags = 0;
-  ret = sceNetInit(&param);
-  if (ret < 0) {
-    printf("BBBB %x\n", ret);
+
+  if ((ret = sceNetInit(&param)) < 0) {
+    fprintf(stderr, "sceNetInit failed: %x\n", ret);
     return 1;
   }
 
-  ret = sceNetCtlInit();
-  if (ret < 0) {
-    printf("CCCC %x\n", ret);
+  if ((ret = sceNetCtlInit()) < 0) {
+    fprintf(stderr, "sceNetCtlInit failed %x\n", ret);
     return 1;
   }
 
-  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_HTTP);
-  if (ret < 0) {
-    printf("DDDD %x\n", ret);
+  if ((ret = sceSysmoduleLoadModule(SCE_SYSMODULE_HTTP)) < 0) {
+    fprintf(stderr, "SCE_SYSMODULE_HTTP loading failed: %x\n", ret);
     return 1;
   }
 
-  ret = sceHttpInit(1024 * 1024);
-  if (ret < 0) {
-    printf("EEEE %x\n", ret);
+  if ((ret = sceHttpInit(1024 * 1024)) < 0) {
+    fprintf(stderr, "sceHttpInit failed: %x\n", ret);
     return 1;
   }
 
-  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_HTTPS);
-  if (ret < 0) {
-    printf("FFFF %x\n", ret);
+  if ((ret = sceSysmoduleLoadModule(SCE_SYSMODULE_HTTPS)) < 0) {
+    fprintf(stderr, "SCE_SYSMODULE_HTTPS loading failed: %x\n", ret);
     return 1;
   }
 
-  ret = sceSysmoduleLoadModule(SCE_SYSMODULE_SSL);
-  if (ret < 0) {
-    printf("GGGG %x\n", ret);
+  if ((ret = sceSysmoduleLoadModule(SCE_SYSMODULE_SSL)) < 0) {
+    fprintf(stderr, "SCE_SYSMODULE_SSL loading failed: %x\n", ret);
     return 1;
   }
 
-  ret = sceSslInit(1024 * 1024);
-  if (ret < 0) {
-    printf("HHHH %x\n", ret);
+  if ((ret = sceSslInit(1024 * 1024)) < 0) {
+    fprintf(stderr, "SslInit failed: %x\n", ret);
     return 1;
   }
 
-  printf("network initialized\n");
+  printf("Network initialized.\n");
+
+  td::CSlice main_dir = "ux0:data/td_test";
+  td::rmrf(main_dir).ignore();
+  td::mkdir(main_dir, 0777).ensure();
+
+  printf("Tempdir %s is ready.\n", main_dir.c_str());
 #endif
+
   td::init_openssl_threads();
 
   td::TestsRunner &runner = td::TestsRunner::get_default();
@@ -119,6 +120,7 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef __vita__
+  printf("All tests completed. Shutting down.\n")
   sceSysmoduleUnloadModule(SCE_SYSMODULE_SSL);
   sceSysmoduleUnloadModule(SCE_SYSMODULE_HTTPS);
   sceSysmoduleUnloadModule(SCE_SYSMODULE_HTTP);

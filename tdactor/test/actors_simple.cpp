@@ -42,6 +42,9 @@ static std::shared_ptr<td::MpscPollableQueue<td::EventFull>> create_queue() {
 }
 
 TEST(Actors, SendLater) {
+  #if TD_EVENTFD_UNSUPPORTED
+    return;
+  #endif
   sb.clear();
   td::Scheduler scheduler;
   scheduler.init(0, {create_queue()}, nullptr);
@@ -99,6 +102,9 @@ class XReceiver final : public td::Actor {
 };
 
 TEST(Actors, simple_pass_event_arguments) {
+  #if TD_EVENTFD_UNSUPPORTED
+    return;
+  #endif
   td::Scheduler scheduler;
   scheduler.init(0, {create_queue()}, nullptr);
 
@@ -205,6 +211,9 @@ class PrintChar final : public td::Actor {
 // Yield must add actor to the end of queue
 //
 TEST(Actors, simple_hand_yield) {
+  #if TD_EVENTFD_UNSUPPORTED
+    return;
+  #endif
   td::Scheduler scheduler;
   scheduler.init(0, {create_queue()}, nullptr);
   sb.clear();
@@ -283,7 +292,12 @@ class OpenClose final : public td::Actor {
   void wakeup() final {
     auto observer = reinterpret_cast<td::ObserverBase *>(123);
     if (cnt_ > 0) {
-      auto r_file_fd = td::FileFd::open("server", td::FileFd::Read | td::FileFd::Create);
+      #ifndef __vita__
+        td::CSlice server_name = "server";
+      #else
+        td::CSlice server_name = "ux0:data/td_test/server";
+      #endif
+      auto r_file_fd = td::FileFd::open(server_name, td::FileFd::Read | td::FileFd::Create);
       LOG_CHECK(r_file_fd.is_ok()) << r_file_fd.error();
       auto file_fd = r_file_fd.move_as_ok();
       { auto pollable_fd = file_fd.get_poll_info().extract_pollable_fd(observer); }
@@ -303,7 +317,7 @@ TEST(Actors, open_close) {
   td::ConcurrentScheduler scheduler;
   scheduler.init(2);
   int cnt = 1000000;
-#if TD_WINDOWS || TD_ANDROID
+#if TD_WINDOWS || TD_ANDROID || __vita__
   // TODO(perf) optimize
   cnt = 100;
 #endif
@@ -356,6 +370,9 @@ class MasterActor final : public MsgActor {
 }  // namespace
 
 TEST(Actors, call_after_destruct) {
+  #if TD_EVENTFD_UNSUPPORTED
+    return;
+  #endif
   td::Scheduler scheduler;
   scheduler.init(0, {create_queue()}, nullptr);
   {

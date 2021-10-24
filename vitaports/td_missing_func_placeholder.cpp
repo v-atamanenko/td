@@ -9,34 +9,19 @@
 #include <ctype.h>
 #include <string.h>
 #include <cstdio>
+#include <sys/errno.h>
 
 #define fcntl(A,B,C) 0
-
-int fsync (int __fd) {
-    if (sceIoSyncByFd(__fd, 0) == 0) {
-        return -1;
-    } else {
-        return 0;
-    }
-}
-
-char * realpath (const char *__restrict path, char *__restrict resolved_path) {
-  strcpy(resolved_path, path);
-  return resolved_path;
-}
+#define SCE_ERRNO_MASK 0xFF
 
 int usleep(unsigned useconds) {
-    return sceKernelDelayThread(useconds);
+  return sceKernelDelayThread(useconds);
 }
 
 int chdir (const char *__path) {
- fprintf(stderr, "warn:chdir");
+  fprintf(stderr, "[WARNING] chdir used\n");
+  errno = ENOSYS;
   return -1;
-}
-
-DIR *fdopendir(int) {
- fprintf(stderr, "warn:fdopendir");
-  return nullptr;
 }
 
 int utimes (const char *, const struct timeval [2]) {

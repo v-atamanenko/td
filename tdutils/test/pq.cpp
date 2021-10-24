@@ -106,7 +106,12 @@ TEST(CryptoPQ, hands) {
 
 #if TD_HAVE_OPENSSL
 TEST(CryptoPQ, generated_slow) {
-  for (int i = 0; i < 100000; i++) {
+  #ifndef __vita__
+    int maxi = 100000;
+  #else
+    int maxi = 100;
+  #endif
+  for (int i = 0; i < maxi; i++) {
     test_pq(2, 2);
   }
   auto queries = gen_pq_queries();

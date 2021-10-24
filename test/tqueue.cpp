@@ -47,7 +47,11 @@ class TestTQueue {
   using EventId = td::TQueue::EventId;
 
   static td::CSlice binlog_path() {
+    #ifndef __vita__
     return td::CSlice("tqueue_binlog");
+    #else
+    return td::CSlice("ux0:data/td_test/tqueue_binlog");
+    #endif
   }
 
   TestTQueue() {

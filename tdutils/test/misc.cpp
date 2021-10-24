@@ -746,6 +746,8 @@ TEST(Misc, IPAddress_is_reserved) {
   test_is_reserved("255.255.255.255", true);
 }
 
+// IPv6 is unsupported on Vita
+#ifndef __vita__
 TEST(Misc, ipv6_clear) {
   td::IPAddress ip_address;
   ip_address.init_host_port("2001:0db8:85a3:0000:0000:8a2e:0370:7334", 123).ensure();
@@ -753,6 +755,7 @@ TEST(Misc, ipv6_clear) {
   ip_address.clear_ipv6_interface();
   ASSERT_EQ("2001:db8:85a3::", ip_address.get_ip_str());
 }
+#endif
 
 static void test_split(td::Slice str, std::pair<td::Slice, td::Slice> expected) {
   ASSERT_EQ(expected, td::split(str));
@@ -836,7 +839,11 @@ TEST(Misc, As) {
 }
 
 TEST(Misc, Regression) {
+  #ifdef __vita__
+  td::string name = "ux0:data/td_test/regression_db";
+  #else
   td::string name = "regression_db";
+  #endif
   td::RegressionTester::destroy(name);
 
   {
