@@ -6,7 +6,6 @@
 //
 #include "td/telegram/Td.h"
 
-#include "td/telegram/AccessRights.h"
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AudiosManager.h"
 #include "td/telegram/AuthManager.h"
@@ -170,7 +169,7 @@ void Td::ResultHandler::on_result(NetQueryPtr query) {
 
 void Td::ResultHandler::send_query(NetQueryPtr query) {
   td->add_handler(query->id(), shared_from_this());
-  td->send(std::move(query));
+  send(std::move(query));
 }
 
 class GetPromoDataQuery final : public Td::ResultHandler {
@@ -560,7 +559,7 @@ class TestProxyRequest final : public RequestOnceActor {
     auto handshake = make_unique<mtproto::AuthKeyHandshake>(dc_id_, 3600);
     auto data = r_data.move_as_ok();
     auto raw_connection =
-        mtproto::RawConnection::create(data.ip_address, std::move(data.socket_fd), get_transport(), nullptr);
+        mtproto::RawConnection::create(data.ip_address, std::move(data.buffered_socket_fd), get_transport(), nullptr);
     child_ = create_actor<mtproto::HandshakeActor>(
         "HandshakeActor", std::move(handshake), std::move(raw_connection), make_unique<HandshakeContext>(), 10.0,
         PromiseCreator::lambda([actor_id = actor_id(this)](Result<unique_ptr<mtproto::RawConnection>> raw_connection) {
@@ -6271,8 +6270,7 @@ void Td::on_request(uint64 id, td_api::searchChatMembers &request) {
         }
       });
   contacts_manager_->search_dialog_participants(DialogId(request.chat_id_), request.query_, request.limit_,
-                                                get_dialog_participants_filter(request.filter_),
-                                                std::move(query_promise));
+                                                DialogParticipantsFilter(request.filter_), std::move(query_promise));
 }
 
 void Td::on_request(uint64 id, td_api::getChatAdministrators &request) {

@@ -2739,12 +2739,12 @@ class BlockFromRepliesQuery final : public Td::ResultHandler {
   explicit BlockFromRepliesQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(MessageId message_id, bool delete_message, bool delete_all_messages, bool report_spam) {
+  void send(MessageId message_id, bool need_delete_message, bool need_delete_all_messages, bool report_spam) {
     int32 flags = 0;
-    if (delete_message) {
+    if (need_delete_message) {
       flags |= telegram_api::contacts_blockFromReplies::DELETE_MESSAGE_MASK;
     }
-    if (delete_all_messages) {
+    if (need_delete_all_messages) {
       flags |= telegram_api::contacts_blockFromReplies::DELETE_HISTORY_MASK;
     }
     if (report_spam) {
@@ -16623,8 +16623,8 @@ void MessagesManager::on_get_common_dialogs(UserId user_id, int64 offset_chat_id
   common_dialogs.total_count = total_count;
 }
 
-void MessagesManager::block_message_sender_from_replies(MessageId message_id, bool delete_message,
-                                                        bool delete_all_messages, bool report_spam,
+void MessagesManager::block_message_sender_from_replies(MessageId message_id, bool need_delete_message,
+                                                        bool need_delete_all_messages, bool report_spam,
                                                         Promise<Unit> &&promise) {
   auto dialog_id = DialogId(ContactsManager::get_replies_bot_user_id());
   Dialog *d = get_dialog_force(dialog_id, "block_message_sender_from_replies");
@@ -16649,20 +16649,19 @@ void MessagesManager::block_message_sender_from_replies(MessageId message_id, bo
   }
   bool need_update_dialog_pos = false;
   vector<int64> deleted_message_ids;
-  if (delete_message) {
-    auto p = this->delete_message(d, message_id, true, &need_update_dialog_pos, "block_message_sender_from_replies");
+  if (need_delete_message) {
+    auto p = delete_message(d, message_id, true, &need_update_dialog_pos, "block_message_sender_from_replies");
     CHECK(p.get() == m);
     deleted_message_ids.push_back(p->message_id.get());
   }
-  if (delete_all_messages && sender_user_id.is_valid()) {
+  if (need_delete_all_messages && sender_user_id.is_valid()) {
     vector<MessageId> message_ids;
     find_messages(d->messages.get(), message_ids, [sender_user_id](const Message *m) {
       return !m->is_outgoing && m->forward_info != nullptr && m->forward_info->sender_user_id == sender_user_id;
     });
 
     for (auto user_message_id : message_ids) {
-      auto p = this->delete_message(d, user_message_id, true, &need_update_dialog_pos,
-                                    "block_message_sender_from_replies 2");
+      auto p = delete_message(d, user_message_id, true, &need_update_dialog_pos, "block_message_sender_from_replies 2");
       deleted_message_ids.push_back(p->message_id.get());
     }
   }
@@ -16673,7 +16672,7 @@ void MessagesManager::block_message_sender_from_replies(MessageId message_id, bo
 
   send_update_delete_messages(dialog_id, std::move(deleted_message_ids), true, false);
 
-  block_message_sender_from_replies_on_server(message_id, delete_message, delete_all_messages, report_spam, 0,
+  block_message_sender_from_replies_on_server(message_id, need_delete_message, need_delete_all_messages, report_spam, 0,
                                               std::move(promise));
 }
 
@@ -16708,24 +16707,25 @@ class MessagesManager::BlockMessageSenderFromRepliesOnServerLogEvent {
 };
 
 uint64 MessagesManager::save_block_message_sender_from_replies_on_server_log_event(MessageId message_id,
-                                                                                   bool delete_message,
-                                                                                   bool delete_all_messages,
+                                                                                   bool need_delete_message,
+                                                                                   bool need_delete_all_messages,
                                                                                    bool report_spam) {
-  BlockMessageSenderFromRepliesOnServerLogEvent log_event{message_id, delete_message, delete_all_messages, report_spam};
+  BlockMessageSenderFromRepliesOnServerLogEvent log_event{message_id, need_delete_message, need_delete_all_messages,
+                                                          report_spam};
   return binlog_add(G()->td_db()->get_binlog(), LogEvent::HandlerType::BlockMessageSenderFromRepliesOnServer,
                     get_log_event_storer(log_event));
 }
 
-void MessagesManager::block_message_sender_from_replies_on_server(MessageId message_id, bool delete_message,
-                                                                  bool delete_all_messages, bool report_spam,
+void MessagesManager::block_message_sender_from_replies_on_server(MessageId message_id, bool need_delete_message,
+                                                                  bool need_delete_all_messages, bool report_spam,
                                                                   uint64 log_event_id, Promise<Unit> &&promise) {
   if (log_event_id == 0) {
-    log_event_id = save_block_message_sender_from_replies_on_server_log_event(message_id, delete_message,
-                                                                              delete_all_messages, report_spam);
+    log_event_id = save_block_message_sender_from_replies_on_server_log_event(message_id, need_delete_message,
+                                                                              need_delete_all_messages, report_spam);
   }
 
   td_->create_handler<BlockFromRepliesQuery>(get_erase_log_event_promise(log_event_id, std::move(promise)))
-      ->send(message_id, delete_message, delete_all_messages, report_spam);
+      ->send(message_id, need_delete_message, need_delete_all_messages, report_spam);
 }
 
 void MessagesManager::get_blocked_dialogs(int32 offset, int32 limit,
@@ -18167,7 +18167,7 @@ void MessagesManager::on_reorder_dialog_filters(vector<DialogFilterId> dialog_fi
   if (result.is_error()) {
     // TODO rollback dialog_filters_ changes if error isn't 429
   } else {
-    if (set_dialog_filters_order(server_dialog_filters_, dialog_filter_ids)) {
+    if (set_dialog_filters_order(server_dialog_filters_, std::move(dialog_filter_ids))) {
       save_dialog_filters();
     }
   }
@@ -23056,40 +23056,43 @@ tl_object_ptr<td_api::message> MessagesManager::get_message_object(DialogId dial
   } else {
     ttl = 0;
   }
+  auto sender = get_message_sender_object_const(m->sender_user_id, m->sender_dialog_id, source);
   auto scheduling_state = is_scheduled ? get_message_scheduling_state_object(m->date) : nullptr;
-  bool can_be_edited = for_event_log ? false : can_edit_message(dialog_id, m, false, td_->auth_manager_->is_bot());
-  bool can_be_forwarded = for_event_log ? false : can_forward_message(dialog_id, m);
-  bool can_get_statistics = for_event_log ? false : can_get_message_statistics(dialog_id, m);
-  bool can_get_message_thread = for_event_log ? false : get_top_thread_full_message_id(dialog_id, m).is_ok();
-  bool can_get_viewers = for_event_log ? false : can_get_message_viewers(dialog_id, m).is_ok();
-  bool can_get_media_timestamp_links = for_event_log ? false : can_get_media_timestamp_link(dialog_id, m).is_ok();
+  auto forward_info = get_message_forward_info_object(m->forward_info);
+  auto interaction_info = get_message_interaction_info_object(dialog_id, m);
+  auto can_be_edited = for_event_log ? false : can_edit_message(dialog_id, m, false, td_->auth_manager_->is_bot());
+  auto can_be_forwarded = for_event_log ? false : can_forward_message(dialog_id, m);
+  auto can_get_statistics = for_event_log ? false : can_get_message_statistics(dialog_id, m);
+  auto can_get_message_thread = for_event_log ? false : get_top_thread_full_message_id(dialog_id, m).is_ok();
+  auto can_get_viewers = for_event_log ? false : can_get_message_viewers(dialog_id, m).is_ok();
+  auto can_get_media_timestamp_links = for_event_log ? false : can_get_media_timestamp_link(dialog_id, m).is_ok();
   auto via_bot_user_id = td_->contacts_manager_->get_user_id_object(m->via_bot_user_id, "via_bot_user_id");
   auto media_album_id = for_event_log ? static_cast<int64>(0) : m->media_album_id;
   auto reply_to_message_id = for_event_log ? static_cast<int64>(0) : m->reply_to_message_id.get();
   auto reply_in_dialog_id =
       reply_to_message_id == 0 ? DialogId() : (m->reply_in_dialog_id.is_valid() ? m->reply_in_dialog_id : dialog_id);
   auto top_thread_message_id = for_event_log || is_scheduled ? static_cast<int64>(0) : m->top_thread_message_id.get();
-  bool contains_unread_mention = for_event_log ? false : m->contains_unread_mention;
-  auto live_location_date = m->is_failed_to_send ? 0 : m->date;
+  auto contains_unread_mention = for_event_log ? false : m->contains_unread_mention;
   auto date = is_scheduled ? 0 : m->date;
   auto edit_date = m->hide_edit_date ? 0 : m->edit_date;
   auto is_pinned = for_event_log || is_scheduled ? false : m->is_pinned;
-  bool skip_bot_commands = for_event_log ? true : need_skip_bot_commands(dialog_id, m);
-  int32 max_media_timestamp =
+  auto has_timestamped_media = for_event_log || reply_to_message_id == 0 || m->max_own_media_timestamp >= 0;
+  auto reply_markup = get_reply_markup_object(m->reply_markup);
+
+  auto live_location_date = m->is_failed_to_send ? 0 : m->date;
+  auto skip_bot_commands = for_event_log ? true : need_skip_bot_commands(dialog_id, m);
+  auto max_media_timestamp =
       for_event_log ? get_message_own_max_media_timestamp(m) : get_message_max_media_timestamp(m);
-  bool has_timestamped_media = for_event_log || reply_to_message_id == 0 || m->max_own_media_timestamp >= 0;
+  auto content = get_message_content_object(m->content.get(), td_, dialog_id, live_location_date, m->is_content_secret,
+                                            skip_bot_commands, max_media_timestamp);
   return make_tl_object<td_api::message>(
-      m->message_id.get(), get_message_sender_object_const(m->sender_user_id, m->sender_dialog_id, source),
-      dialog_id.get(), std::move(sending_state), std::move(scheduling_state), is_outgoing, is_pinned, can_be_edited,
-      can_be_forwarded, can_delete_for_self, can_delete_for_all_users, can_get_statistics, can_get_message_thread,
-      can_get_viewers, can_get_media_timestamp_links, has_timestamped_media, m->is_channel_post,
-      contains_unread_mention, date, edit_date, get_message_forward_info_object(m->forward_info),
-      get_message_interaction_info_object(dialog_id, m), reply_in_dialog_id.get(), reply_to_message_id,
-      top_thread_message_id, ttl, ttl_expires_in, via_bot_user_id, m->author_signature, media_album_id,
-      get_restriction_reason_description(m->restriction_reasons),
-      get_message_content_object(m->content.get(), td_, dialog_id, live_location_date, m->is_content_secret,
-                                 skip_bot_commands, max_media_timestamp),
-      get_reply_markup_object(m->reply_markup));
+      m->message_id.get(), std::move(sender), dialog_id.get(), std::move(sending_state), std::move(scheduling_state),
+      is_outgoing, is_pinned, can_be_edited, can_be_forwarded, can_delete_for_self, can_delete_for_all_users,
+      can_get_statistics, can_get_message_thread, can_get_viewers, can_get_media_timestamp_links, has_timestamped_media,
+      m->is_channel_post, contains_unread_mention, date, edit_date, std::move(forward_info),
+      std::move(interaction_info), reply_in_dialog_id.get(), reply_to_message_id, top_thread_message_id, ttl,
+      ttl_expires_in, via_bot_user_id, m->author_signature, media_album_id,
+      get_restriction_reason_description(m->restriction_reasons), std::move(content), std::move(reply_markup));
 }
 
 tl_object_ptr<td_api::messages> MessagesManager::get_messages_object(int32 total_count, DialogId dialog_id,
@@ -28549,10 +28552,11 @@ void MessagesManager::send_update_chat_last_message_impl(const Dialog *d, const 
   LOG_CHECK(d->is_update_new_chat_sent) << "Wrong " << d->dialog_id << " in send_update_chat_last_message from "
                                         << source;
   LOG(INFO) << "Send updateChatLastMessage in " << d->dialog_id << " to " << d->last_message_id << " from " << source;
-  auto update = make_tl_object<td_api::updateChatLastMessage>(
-      d->dialog_id.get(),
-      get_message_object(d->dialog_id, get_message(d, d->last_message_id), "send_update_chat_last_message_impl"),
-      get_chat_positions_object(d));
+  const auto *m = get_message(d, d->last_message_id);
+  auto message_object = get_message_object(d->dialog_id, m, "send_update_chat_last_message_impl");
+  auto positions_object = get_chat_positions_object(d);
+  auto update = td_api::make_object<td_api::updateChatLastMessage>(d->dialog_id.get(), std::move(message_object),
+                                                                   std::move(positions_object));
   send_closure(G()->td(), &Td::send_update, std::move(update));
 }
 

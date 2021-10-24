@@ -3128,20 +3128,23 @@ tl_object_ptr<td_api::chatStatisticsSupergroup> ContactsManager::convert_megagro
   td::remove_if(obj->top_inviters_,
                 [](auto &obj) { return !UserId(obj->user_id_).is_valid() || obj->invitations_ < 0; });
 
-  auto top_senders = transform(std::move(obj->top_posters_), [this](auto &&top_poster) {
-    return td_api::make_object<td_api::chatStatisticsMessageSenderInfo>(
-        this->get_user_id_object(UserId(top_poster->user_id_), "get_top_senders"), top_poster->messages_,
-        top_poster->avg_chars_);
-  });
-  auto top_administrators = transform(std::move(obj->top_admins_), [this](auto &&top_admin) {
-    return td_api::make_object<td_api::chatStatisticsAdministratorActionsInfo>(
-        this->get_user_id_object(UserId(top_admin->user_id_), "get_top_administrators"), top_admin->deleted_,
-        top_admin->kicked_, top_admin->banned_);
-  });
-  auto top_inviters = transform(std::move(obj->top_inviters_), [this](auto &&top_inviter) {
-    return td_api::make_object<td_api::chatStatisticsInviterInfo>(
-        this->get_user_id_object(UserId(top_inviter->user_id_), "get_top_inviters"), top_inviter->invitations_);
-  });
+  auto top_senders =
+      transform(std::move(obj->top_posters_), [this](tl_object_ptr<telegram_api::statsGroupTopPoster> &&top_poster) {
+        return td_api::make_object<td_api::chatStatisticsMessageSenderInfo>(
+            get_user_id_object(UserId(top_poster->user_id_), "get_top_senders"), top_poster->messages_,
+            top_poster->avg_chars_);
+      });
+  auto top_administrators =
+      transform(std::move(obj->top_admins_), [this](tl_object_ptr<telegram_api::statsGroupTopAdmin> &&top_admin) {
+        return td_api::make_object<td_api::chatStatisticsAdministratorActionsInfo>(
+            get_user_id_object(UserId(top_admin->user_id_), "get_top_administrators"), top_admin->deleted_,
+            top_admin->kicked_, top_admin->banned_);
+      });
+  auto top_inviters =
+      transform(std::move(obj->top_inviters_), [this](tl_object_ptr<telegram_api::statsGroupTopInviter> &&top_inviter) {
+        return td_api::make_object<td_api::chatStatisticsInviterInfo>(
+            get_user_id_object(UserId(top_inviter->user_id_), "get_top_inviters"), top_inviter->invitations_);
+      });
 
   return make_tl_object<td_api::chatStatisticsSupergroup>(
       convert_date_range(obj->period_), convert_stats_absolute_value(obj->members_),
@@ -14755,17 +14758,18 @@ void ContactsManager::get_dialog_participant(DialogId dialog_id, DialogId partic
   }
 
   switch (dialog_id.get_type()) {
-    case DialogType::User:
-      if (participant_dialog_id == DialogId(get_my_id())) {
-        return promise.set_value(
-            DialogParticipant{participant_dialog_id, dialog_id.get_user_id(), 0, DialogParticipantStatus::Member()});
+    case DialogType::User: {
+      auto my_user_id = get_my_id();
+      auto peer_user_id = dialog_id.get_user_id();
+      if (participant_dialog_id == DialogId(my_user_id)) {
+        return promise.set_value(DialogParticipant::private_member(my_user_id, peer_user_id));
       }
       if (participant_dialog_id == dialog_id) {
-        return promise.set_value(
-            DialogParticipant{participant_dialog_id, get_my_id(), 0, DialogParticipantStatus::Member()});
+        return promise.set_value(DialogParticipant::private_member(peer_user_id, my_user_id));
       }
 
       return promise.set_error(Status::Error(400, "Member not found"));
+    }
     case DialogType::Chat:
       if (participant_dialog_id.get_type() != DialogType::User) {
         return promise.set_value(DialogParticipant::left(participant_dialog_id));
@@ -14774,15 +14778,13 @@ void ContactsManager::get_dialog_participant(DialogId dialog_id, DialogId partic
     case DialogType::Channel:
       return get_channel_participant(dialog_id.get_channel_id(), participant_dialog_id, std::move(promise));
     case DialogType::SecretChat: {
+      auto my_user_id = get_my_id();
       auto peer_user_id = get_secret_chat_user_id(dialog_id.get_secret_chat_id());
-      if (participant_dialog_id == DialogId(get_my_id())) {
-        return promise.set_value(DialogParticipant{participant_dialog_id,
-                                                   peer_user_id.is_valid() ? peer_user_id : get_my_id(), 0,
-                                                   DialogParticipantStatus::Member()});
+      if (participant_dialog_id == DialogId(my_user_id)) {
+        return promise.set_value(DialogParticipant::private_member(my_user_id, peer_user_id));
       }
-      if (participant_dialog_id == DialogId(peer_user_id)) {
-        return promise.set_value(
-            DialogParticipant{participant_dialog_id, get_my_id(), 0, DialogParticipantStatus::Member()});
+      if (peer_user_id.is_valid() && participant_dialog_id == DialogId(peer_user_id)) {
+        return promise.set_value(DialogParticipant::private_member(peer_user_id, my_user_id));
       }
 
       return promise.set_error(Status::Error(400, "Member not found"));
@@ -14798,42 +14800,18 @@ DialogParticipants ContactsManager::search_private_chat_participants(UserId my_u
                                                                      const string &query, int32 limit,
                                                                      DialogParticipantsFilter filter) const {
   vector<DialogId> dialog_ids;
-  switch (filter.type) {
-    case DialogParticipantsFilter::Type::Contacts:
-      if (peer_user_id.is_valid() && is_user_contact(peer_user_id)) {
-        dialog_ids.push_back(DialogId(peer_user_id));
-      }
-      break;
-    case DialogParticipantsFilter::Type::Administrators:
-      break;
-    case DialogParticipantsFilter::Type::Members:
-    case DialogParticipantsFilter::Type::Mention:
-      dialog_ids.push_back(DialogId(my_user_id));
-      if (peer_user_id.is_valid() && peer_user_id != my_user_id) {
-        dialog_ids.push_back(DialogId(peer_user_id));
-      }
-      break;
-    case DialogParticipantsFilter::Type::Restricted:
-      break;
-    case DialogParticipantsFilter::Type::Banned:
-      break;
-    case DialogParticipantsFilter::Type::Bots:
-      if (td_->auth_manager_->is_bot()) {
-        dialog_ids.push_back(DialogId(my_user_id));
-      }
-      if (peer_user_id.is_valid() && is_user_bot(peer_user_id) && peer_user_id != my_user_id) {
-        dialog_ids.push_back(DialogId(peer_user_id));
-      }
-      break;
-    default:
-      UNREACHABLE();
+  if (filter.is_dialog_participant_suitable(td_, DialogParticipant::private_member(my_user_id, peer_user_id))) {
+    dialog_ids.push_back(DialogId(my_user_id));
+  }
+  if (peer_user_id.is_valid() && peer_user_id != my_user_id &&
+      filter.is_dialog_participant_suitable(td_, DialogParticipant::private_member(peer_user_id, my_user_id))) {
+    dialog_ids.push_back(DialogId(peer_user_id));
   }
 
   auto result = search_among_dialogs(dialog_ids, query, limit);
   return {result.first, transform(result.second, [&](DialogId dialog_id) {
-            return DialogParticipant(
-                dialog_id, dialog_id == DialogId(my_user_id) && peer_user_id.is_valid() ? peer_user_id : my_user_id, 0,
-                DialogParticipantStatus::Member());
+            auto user_id = dialog_id.get_user_id();
+            return DialogParticipant::private_member(user_id, user_id == my_user_id ? peer_user_id : my_user_id);
           })};
 }
 
@@ -14856,55 +14834,14 @@ void ContactsManager::search_dialog_participants(DialogId dialog_id, const strin
     case DialogType::Chat:
       return search_chat_participants(dialog_id.get_chat_id(), query, limit, filter, std::move(promise));
     case DialogType::Channel: {
-      td_api::object_ptr<td_api::SupergroupMembersFilter> request_filter;
-      string additional_query;
-      int32 additional_limit = 0;
-      switch (filter.type) {
-        case DialogParticipantsFilter::Type::Contacts:
-          request_filter = td_api::make_object<td_api::supergroupMembersFilterContacts>();
-          break;
-        case DialogParticipantsFilter::Type::Administrators:
-          request_filter = td_api::make_object<td_api::supergroupMembersFilterAdministrators>();
-          break;
-        case DialogParticipantsFilter::Type::Members:
-          request_filter = td_api::make_object<td_api::supergroupMembersFilterSearch>(query);
-          break;
-        case DialogParticipantsFilter::Type::Restricted:
-          request_filter = td_api::make_object<td_api::supergroupMembersFilterRestricted>(query);
-          break;
-        case DialogParticipantsFilter::Type::Banned:
-          request_filter = td_api::make_object<td_api::supergroupMembersFilterBanned>(query);
-          break;
-        case DialogParticipantsFilter::Type::Mention:
-          request_filter =
-              td_api::make_object<td_api::supergroupMembersFilterMention>(query, filter.top_thread_message_id.get());
-          break;
-        case DialogParticipantsFilter::Type::Bots:
-          request_filter = td_api::make_object<td_api::supergroupMembersFilterBots>();
-          break;
-        default:
-          UNREACHABLE();
+      auto channel_id = dialog_id.get_channel_id();
+      if (filter.has_query()) {
+        return get_channel_participants(channel_id, filter.get_supergroup_members_filter_object(query), string(), 0,
+                                        limit, 0, std::move(promise));
+      } else {
+        return get_channel_participants(channel_id, filter.get_supergroup_members_filter_object(string()), query, 0,
+                                        100, limit, std::move(promise));
       }
-      switch (filter.type) {
-        case DialogParticipantsFilter::Type::Contacts:
-        case DialogParticipantsFilter::Type::Administrators:
-        case DialogParticipantsFilter::Type::Bots:
-          additional_query = query;
-          additional_limit = limit;
-          limit = 100;
-          break;
-        case DialogParticipantsFilter::Type::Members:
-        case DialogParticipantsFilter::Type::Restricted:
-        case DialogParticipantsFilter::Type::Banned:
-        case DialogParticipantsFilter::Type::Mention:
-          // query is passed to the server request
-          break;
-        default:
-          UNREACHABLE();
-      }
-
-      return get_channel_participants(dialog_id.get_channel_id(), std::move(request_filter),
-                                      std::move(additional_query), 0, limit, additional_limit, std::move(promise));
     }
     case DialogType::SecretChat: {
       auto peer_user_id = get_secret_chat_user_id(dialog_id.get_secret_chat_id());
@@ -14984,32 +14921,9 @@ void ContactsManager::do_search_chat_participants(ChatId chat_id, const string &
     return promise.set_error(Status::Error(500, "Can't find basic group full info"));
   }
 
-  auto is_dialog_participant_suitable = [this, filter](const DialogParticipant &participant) {
-    switch (filter.type) {
-      case DialogParticipantsFilter::Type::Contacts:
-        return participant.dialog_id.get_type() == DialogType::User &&
-               is_user_contact(participant.dialog_id.get_user_id());
-      case DialogParticipantsFilter::Type::Administrators:
-        return participant.status.is_administrator();
-      case DialogParticipantsFilter::Type::Members:
-        return participant.status.is_member();  // should be always true
-      case DialogParticipantsFilter::Type::Restricted:
-        return participant.status.is_restricted();  // should be always false
-      case DialogParticipantsFilter::Type::Banned:
-        return participant.status.is_banned();  // should be always false
-      case DialogParticipantsFilter::Type::Mention:
-        return true;
-      case DialogParticipantsFilter::Type::Bots:
-        return participant.dialog_id.get_type() == DialogType::User && is_user_bot(participant.dialog_id.get_user_id());
-      default:
-        UNREACHABLE();
-        return false;
-    }
-  };
-
   vector<DialogId> dialog_ids;
   for (const auto &participant : chat_full->participants) {
-    if (is_dialog_participant_suitable(participant)) {
+    if (filter.is_dialog_participant_suitable(td_, participant)) {
       dialog_ids.push_back(participant.dialog_id);
     }
   }
