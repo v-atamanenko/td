@@ -9,13 +9,11 @@
 #include "td/actor/MultiPromise.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/SleepActor.h"
-#include "td/actor/Timeout.h"
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
 #include "td/utils/MpscPollableQueue.h"
 #include "td/utils/Observer.h"
-#include "td/utils/port/detail/PollableFd.h"
 #include "td/utils/port/FileFd.h"
 #include "td/utils/port/thread.h"
 #include "td/utils/Slice.h"
@@ -27,24 +25,26 @@
 #include <memory>
 #include <tuple>
 
-namespace {
-
 static const size_t BUF_SIZE = 1024 * 1024;
 static char buf[BUF_SIZE];
 static char buf2[BUF_SIZE];
 static td::StringBuilder sb(td::MutableSlice(buf, BUF_SIZE - 1));
 static td::StringBuilder sb2(td::MutableSlice(buf2, BUF_SIZE - 1));
 
-static std::shared_ptr<td::MpscPollableQueue<td::EventFull>> create_queue() {
+static td::vector<std::shared_ptr<td::MpscPollableQueue<td::EventFull>>> create_queues() {
+#if TD_THREAD_UNSUPPORTED || TD_EVENTFD_UNSUPPORTED
+  return {};
+#else
   auto res = std::make_shared<td::MpscPollableQueue<td::EventFull>>();
   res->init();
-  return res;
+  return {res};
+#endif
 }
 
 TEST(Actors, SendLater) {
   sb.clear();
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
 
   auto guard = scheduler.get_guard();
   class Worker final : public td::Actor {
@@ -100,7 +100,7 @@ class XReceiver final : public td::Actor {
 
 TEST(Actors, simple_pass_event_arguments) {
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
 
   auto guard = scheduler.get_guard();
   auto id = td::create_actor<XReceiver>("XR").release();
@@ -199,14 +199,13 @@ class PrintChar final : public td::Actor {
   char char_;
   int cnt_;
 };
-}  // namespace
 
 //
 // Yield must add actor to the end of queue
 //
 TEST(Actors, simple_hand_yield) {
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
   sb.clear();
   int cnt = 1000;
   {
@@ -315,7 +314,6 @@ TEST(Actors, open_close) {
   scheduler.finish();
 }
 
-namespace {
 class MsgActor : public td::Actor {
  public:
   virtual void msg() = 0;
@@ -353,11 +351,10 @@ class MasterActor final : public MsgActor {
   }
   td::uint64 alive_ = 123456789;
 };
-}  // namespace
 
 TEST(Actors, call_after_destruct) {
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
   {
     auto guard = scheduler.get_guard();
     td::create_actor<MasterActor>("Master").release();
@@ -655,9 +652,9 @@ TEST(Actors, send_from_other_threads) {
 
 class DelayedCall final : public td::Actor {
  public:
-  void on_called(int *order) {
-    CHECK(*order == 0);
-    *order = 1;
+  void on_called(int *step) {
+    CHECK(*step == 0);
+    *step = 1;
   }
 };
 
@@ -666,21 +663,21 @@ class MultiPromiseSendClosureLaterTest final : public td::Actor {
   void start_up() final {
     delayed_call_ = td::create_actor<DelayedCall>("DelayedCall").release();
     mpa_.add_promise(td::PromiseCreator::lambda([this](td::Unit) {
-      CHECK(order_ == 1);
-      order_++;
+      CHECK(step_ == 1);
+      step_++;
       td::Scheduler::instance()->finish();
     }));
     auto lock = mpa_.get_promise();
-    td::send_closure_later(delayed_call_, &DelayedCall::on_called, &order_);
+    td::send_closure_later(delayed_call_, &DelayedCall::on_called, &step_);
     lock.set_value(td::Unit());
   }
 
   void tear_down() final {
-    CHECK(order_ == 2);
+    CHECK(step_ == 2);
   }
 
  private:
-  int order_ = 0;
+  int step_ = 0;
   td::MultiPromiseActor mpa_{"MultiPromiseActor"};
   td::ActorId<DelayedCall> delayed_call_;
 };
