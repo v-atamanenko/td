@@ -31,10 +31,14 @@ static char buf2[BUF_SIZE];
 static td::StringBuilder sb(td::MutableSlice(buf, BUF_SIZE - 1));
 static td::StringBuilder sb2(td::MutableSlice(buf2, BUF_SIZE - 1));
 
-static std::shared_ptr<td::MpscPollableQueue<td::EventFull>> create_queue() {
+static td::vector<std::shared_ptr<td::MpscPollableQueue<td::EventFull>>> create_queues() {
+#if TD_THREAD_UNSUPPORTED || TD_EVENTFD_UNSUPPORTED
+  return {};
+#else
   auto res = std::make_shared<td::MpscPollableQueue<td::EventFull>>();
   res->init();
-  return res;
+  return {res};
+#endif
 }
 
 TEST(Actors, SendLater) {
@@ -43,7 +47,7 @@ TEST(Actors, SendLater) {
   #endif
   sb.clear();
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
 
   auto guard = scheduler.get_guard();
   class Worker final : public td::Actor {
@@ -102,7 +106,7 @@ TEST(Actors, simple_pass_event_arguments) {
     return;
   #endif
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
 
   auto guard = scheduler.get_guard();
   auto id = td::create_actor<XReceiver>("XR").release();
@@ -210,7 +214,7 @@ TEST(Actors, simple_hand_yield) {
     return;
   #endif
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
   sb.clear();
   int cnt = 1000;
   {
@@ -367,7 +371,7 @@ TEST(Actors, call_after_destruct) {
     return;
   #endif
   td::Scheduler scheduler;
-  scheduler.init(0, {create_queue()}, nullptr);
+  scheduler.init(0, create_queues(), nullptr);
   {
     auto guard = scheduler.get_guard();
     td::create_actor<MasterActor>("Master").release();

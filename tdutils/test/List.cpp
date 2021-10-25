@@ -156,7 +156,7 @@ TEST(Misc, TsList) {
   }
 }
 
-#ifndef TD_THREAD_UNSUPPORTED
+#if !TD_THREAD_UNSUPPORTED
 TEST(Misc, TsListConcurrent) {
   td::TsList<ListData> root;
   td::vector<td::thread> threads;

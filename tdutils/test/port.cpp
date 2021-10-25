@@ -250,6 +250,7 @@ TEST(Port, SignalsAndThread) {
   }
 }
 
+#if !TD_EVENTFD_UNSUPPORTED
 TEST(Port, EventFdAndSignals) {
   td::set_signal_handler(td::SignalType::User, [](int signal) {}).ensure();
   SCOPE_EXIT {
@@ -288,4 +289,5 @@ TEST(Port, EventFdAndSignals) {
   }
   flag.clear();
 }
+#endif
 #endif

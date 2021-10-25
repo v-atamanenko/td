@@ -26,7 +26,7 @@ TEST(StealingQueue, very_simple) {
   ASSERT_EQ(1, x);
 }
 
-#ifndef TD_THREAD_UNSUPPORTED
+#if !TD_THREAD_UNSUPPORTED
 TEST(AtomicRead, simple) {
   td::Stage run;
   td::Stage check;
