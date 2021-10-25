@@ -102,7 +102,7 @@ TEST(Misc, update_atime_saves_mtime) {
 }
 
 TEST(Misc, update_atime_change_atime) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   td::string name = "test_file";
   td::unlink(name).ignore();
   auto r_file = td::FileFd::open(name, td::FileFd::Read | td::FileFd::Flags::Create | td::FileFd::Flags::Truncate);
@@ -746,16 +746,17 @@ TEST(Misc, IPAddress_is_reserved) {
   test_is_reserved("255.255.255.255", true);
 }
 
-// IPv6 is unsupported on Vita
-#ifndef __vita__
 TEST(Misc, ipv6_clear) {
+  #ifdef __vita__
+  return; // IPv6 is unsupported on Vita
+  #endif
+
   td::IPAddress ip_address;
   ip_address.init_host_port("2001:0db8:85a3:0000:0000:8a2e:0370:7334", 123).ensure();
   ASSERT_EQ("2001:db8:85a3::8a2e:370:7334", ip_address.get_ip_str());
   ip_address.clear_ipv6_interface();
   ASSERT_EQ("2001:db8:85a3::", ip_address.get_ip_str());
 }
-#endif
 
 static void test_split(td::Slice str, std::pair<td::Slice, td::Slice> expected) {
   ASSERT_EQ(expected, td::split(str));

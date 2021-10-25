@@ -141,9 +141,7 @@ int inet_pton(int af, const char *src, void *dst)
 {
     switch (af) {
         case AF_INET:
-          fprintf(stderr,"90871\n");
             const int ret = sceNetInetPton(SCE_NET_AF_INET, src, dst);
-            fprintf(stderr,"inetpton: %i\n", ret);
             return ret;
 
         case AF_INET6:
@@ -267,9 +265,6 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t size)
 {
   switch (af) {
     case AF_INET:
-      fprintf(stderr, "%s / %s / %i\n",src,dst, (unsigned int) size);
-
-      fprintf(stderr,"exitcode %i\n", errno);
       sceNetInetNtop(SCE_NET_AF_INET, src, dst, size);
       return dst;
 

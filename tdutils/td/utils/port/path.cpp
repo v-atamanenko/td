@@ -275,7 +275,6 @@ Result<bool> walk_path(string &path, const WalkFunction &func) TD_WARN_UNUSED_RE
 Result<bool> walk_path_subdir(string &path, DIR *dir, const WalkFunction &func) {
   while (true) {
     errno = 0;
-    fprintf(stderr, "OXP\n");
     auto *entry = readdir(dir);
     auto readdir_errno = errno;
     if (readdir_errno) {
@@ -373,17 +372,11 @@ Result<bool> walk_path_file(string &path, const WalkFunction &func) {
 }
 
 Result<bool> walk_path(string &path, const WalkFunction &func) {
-  fprintf(stderr, "walk path started\n");
-  fprintf(stderr, "path %s\n", path.c_str());
   TRY_RESULT(fd, FileFd::open(path, FileFd::Read));
-  fprintf(stderr, "1\n");
   TRY_RESULT(stat, fd.stat());
 
   bool is_dir = stat.is_dir_;
   bool is_reg = stat.is_reg_;
-
-fprintf(stderr, "is dir %i\n", is_dir);
-fprintf(stderr, "is reg %i\n", is_reg);
 
   if (is_dir) {
     return walk_path_dir(path, std::move(fd), func);

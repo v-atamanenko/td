@@ -828,7 +828,7 @@ class Tdclient_login final : public td::Test {
   using Test::Test;
   bool step() final {
     if (!is_inited_) {
-      SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+      SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
       sched_.init(4);
       sched_.create_actor_unsafe<LoginTestActor>(0, "LoginTestActor", &result_).release();
       sched_.start();

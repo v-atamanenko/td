@@ -612,7 +612,7 @@ int main(int argc, char **argv) {
     LOG(PLAIN) << options;
     return 1;
   }
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
 
   td::ConcurrentScheduler sched;
   sched.init(4);

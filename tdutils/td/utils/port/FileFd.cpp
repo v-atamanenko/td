@@ -128,33 +128,26 @@ Result<FileFd> FileFd::open(CSlice filepath, int32 flags, int32 mode) {
   int native_flags = 0;
 
   if ((flags & Write) && (flags & Read)) {
-    fprintf(stderr, "Setting rdwr\n");
     native_flags |= O_RDWR;
   } else if (flags & Write) {
-    fprintf(stderr, "Setting wronly\n");
     native_flags |= O_WRONLY;
   } else {
-    fprintf(stderr, "Setting rdonly\n");
     CHECK(flags & Read);
     native_flags |= O_RDONLY;
   }
 
   if (flags & Truncate) {
-    fprintf(stderr, "Setting truncate\n");
     native_flags |= O_TRUNC;
   }
 
   if (flags & Create) {
-    fprintf(stderr, "Setting creat\n");
     native_flags |= O_CREAT;
   } else if (flags & CreateNew) {
-    fprintf(stderr, "Setting creat & excl\n");
     native_flags |= O_CREAT;
     native_flags |= O_EXCL;
   }
 
   if (flags & Append) {
-    fprintf(stderr, "Setting append\n");
     native_flags |= O_APPEND;
   }
 

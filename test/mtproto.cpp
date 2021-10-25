@@ -48,7 +48,7 @@
 using namespace td;
 
 TEST(Mtproto, GetHostByNameActor) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   ConcurrentScheduler sched;
   int threads_n = 1;
   sched.init(threads_n);
@@ -670,7 +670,7 @@ TEST(Mtproto, Grease) {
 }
 
 TEST(Mtproto, TlsTransport) {
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   ConcurrentScheduler sched;
   int threads_n = 1;
   sched.init(threads_n);

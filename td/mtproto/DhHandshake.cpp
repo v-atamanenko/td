@@ -70,22 +70,27 @@ Status DhHandshake::check_config(Slice prime_str, const BigNum &prime, int32 g_i
   if (is_good_prime != -1) {
     return is_good_prime ? Status::OK() : Status::Error("p or (p - 1) / 2 is not a prime number");
   }
+
+  #ifndef __vita__
   if (!prime.is_prime(ctx)) {
     if (callback) {
       callback->add_bad_prime(prime_str);
     }
     return Status::Error("p is not a prime number");
   }
+  #endif
 
   BigNum half_prime = prime;
   half_prime -= 1;
   half_prime /= 2;
+  #ifndef __vita__
   if (!half_prime.is_prime(ctx)) {
     if (callback) {
       callback->add_bad_prime(prime_str);
     }
     return Status::Error("(p - 1) / 2 is not a prime number");
   }
+  #endif
   if (callback) {
     callback->add_good_prime(prime_str);
   }

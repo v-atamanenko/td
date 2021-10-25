@@ -25,9 +25,7 @@
 #include <psp2/net/netctl.h>
 
 #include <tdutils/td/utils/port/path.h>
-#endif
 
-#ifdef __vita__
 int _newlib_heap_size_user = 128 * 1024 * 1024;
 #endif
 
@@ -93,13 +91,13 @@ int main(int argc, char **argv) {
   td::init_openssl_threads();
 
   td::TestsRunner &runner = td::TestsRunner::get_default();
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
 
 #ifdef __vita__
   // Use this to run specific tests
-  const char* n_argv[] = { "main", "-f", "Mtproto_handshake" };
-  argv = n_argv;
-  argc = 3;
+  //const char* n_argv[] = { "main", "-f", "Mtproto_handshake" };
+  //argv = n_argv;
+  //argc = 3;
 #endif
 
   td::OptionParser options;

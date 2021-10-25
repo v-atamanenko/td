@@ -368,7 +368,7 @@ TEST(DB, key_value) {
     return; // Sqlite is not supported yet.
   #endif
 
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   std::vector<std::string> keys;
   std::vector<std::string> values;
 

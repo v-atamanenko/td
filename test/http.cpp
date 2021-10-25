@@ -145,7 +145,7 @@ TEST(Http, reader) {
   return;
 #endif
   clear_thread_locals();
-  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
+  SET_VERBOSITY_LEVEL(VERBOSITY_NAME(ERROR));
   auto start_mem = BufferAllocator::get_buffer_mem();
   auto start_size = BufferAllocator::get_buffer_slice_size();
   {
@@ -299,15 +299,15 @@ TEST(Http, aes_ctr_encode_decode_flow) {
 }
 
 TEST(Http, aes_file_encryption) {
-#if __vita__  // TODO: Enable test back later. Disabled temporarily because it's very slow.
-  return;
-#endif
-  auto str = rand_string('a', 'z', 1000000);
 #ifndef __vita__
   CSlice name = "test_encryption";
+  size_t rand_string_len = 1000000;
 #else
   CSlice name = "ux0:/data/test_encryption";
+  size_t rand_string_len = 10000;
 #endif
+
+  auto str = rand_string('a', 'z', rand_string_len);
   unlink(name).ignore();
   UInt256 key;
   UInt128 iv;

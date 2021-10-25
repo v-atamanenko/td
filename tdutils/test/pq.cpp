@@ -110,7 +110,7 @@ TEST(CryptoPQ, generated_slow) {
   #ifndef __vita__
     int maxi = 100000;
   #else
-    int maxi = 100;
+    int maxi = 2;
   #endif
   for (int i = 0; i < maxi; i++) {
     test_pq(2, 2);
