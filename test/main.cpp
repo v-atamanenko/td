@@ -95,6 +95,13 @@ int main(int argc, char **argv) {
   td::TestsRunner &runner = td::TestsRunner::get_default();
   SET_VERBOSITY_LEVEL(VERBOSITY_NAME(DEBUG) + 2);
 
+#ifdef __vita__
+  // Use this to run specific tests
+  const char* n_argv[] = { "main", "-f", "Mtproto_handshake" };
+  argv = n_argv;
+  argc = 3;
+#endif
+
   td::OptionParser options;
   options.add_option('f', "filter", "Run only specified tests",
                      [&](td::Slice filter) { runner.add_substr_filter(filter.str()); });
@@ -120,7 +127,7 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef __vita__
-  printf("All tests completed. Shutting down.\n")
+  printf("All tests completed. Shutting down.\n");
   sceSysmoduleUnloadModule(SCE_SYSMODULE_SSL);
   sceSysmoduleUnloadModule(SCE_SYSMODULE_HTTPS);
   sceSysmoduleUnloadModule(SCE_SYSMODULE_HTTP);
