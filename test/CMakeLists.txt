@@ -3,7 +3,7 @@ if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.0.2"))
 endif()
 
 if (POLICY CMP0065)
-  # fix "arm-vita-eabi-g++ is not able to compile a simple test program." https://github.com/tdlib/td/issues/1558
+  # fix #1558 "arm-vita-eabi-g++ is not able to compile a simple test program."
   cmake_policy(SET CMP0065 NEW)
 endif()
 
@@ -12,17 +12,30 @@ if (__vita__)
     message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
   endif()
 
+  if(DEFINED ENV{PSVITAIP})
+    set(PSVITAIP "$ENV{PSVITAIP}")
+  else()
+    set(PSVITAIP "192.168.1.14")
+    message(WARNING "PSVITAIP environment variable is not set, using default IP ${PSVITAIP}")
+  endif()
+
   set(VITASDK "$ENV{VITASDK}")
 
+  # Temporarily unset CMAKE_CROSSCOMPILING so that the toolchain will load
+  set(TEMP_CMAKE_CROSSCOMPILING CMAKE_CROSSCOMPILING)
+  unset(CMAKE_CROSSCOMPILING)
   include("${VITASDK}/share/vita.toolchain.force.cmake" REQUIRED)
   include("${VITASDK}/share/vita.cmake" REQUIRED)
+  set(CMAKE_CROSSCOMPILING TEMP_CMAKE_CROSSCOMPILING)
 
   set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
   set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fpermissive")
 
   set(VITA_APP_NAME "TdLib Tests")
-  set(VITA_TITLEID  "TDLIB0TST")
+  set(VITA_TITLEID  "TDLIBTEST")
   set(VITA_VERSION  "01.00")
+
+  set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 endif()
 
 #SOURCE SETS
@@ -50,12 +63,9 @@ set(TD_TEST_SOURCE
 
 if (__vita__)
   set(TD_TEST_SOURCE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vitaports/inet.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../vitaports/td_missing_func_placeholder.cpp
     ${TD_TEST_SOURCE}
   )
-
-  set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 endif()
 
 set(TD_TEST_SOURCE ${TD_TEST_SOURCE} PARENT_SCOPE)
@@ -132,16 +142,7 @@ if ((NOT CMAKE_CROSSCOMPILING OR EMSCRIPTEN) OR __vita__)
 #    target_compile_options(fuzz_url PRIVATE "-fsanitize-coverage=trace-pc-guard")
   endif()
 
-  if (NOT __vita__)
-    add_test(run_all_tests run_all_tests)
-  else()
-    set( VITA_ELF_CREATE    "${VITASDK}/bin/vita-elf-create${TOOL_OS_SUFFIX}"       CACHE PATH "vita-elf-create" )
-    set( VITA_ELF_EXPORT    "${VITASDK}/bin/vita-elf-export${TOOL_OS_SUFFIX}"       CACHE PATH "vita-elf-export" )
-    set( VITA_LIBS_GEN      "${VITASDK}/bin/vita-libs-gen${TOOL_OS_SUFFIX}"         CACHE PATH "vita-libs-gen" )
-    set( VITA_MAKE_FSELF    "${VITASDK}/bin/vita-make-fself${TOOL_OS_SUFFIX}"       CACHE PATH "vita-make-fself" )
-    set( VITA_MKSFOEX       "${VITASDK}/bin/vita-mksfoex${TOOL_OS_SUFFIX}"          CACHE PATH "vita-mksfoex" )
-    set( VITA_PACK_VPK      "${VITASDK}/bin/vita-pack-vpk${TOOL_OS_SUFFIX}"         CACHE PATH "vita-pack-vpk" )
-
+  if (__vita__)
     vita_create_self(eboot.bin run_all_tests UNSAFE)
 
     vita_create_vpk(${PROJECT_NAME}.vpk ${VITA_TITLEID} eboot.bin
@@ -151,6 +152,16 @@ if ((NOT CMAKE_CROSSCOMPILING OR EMSCRIPTEN) OR __vita__)
             FILE ${CMAKE_CURRENT_SOURCE_DIR}/../vitaports/tdtest_livearea/bg.png sce_sys/livearea/contents/bg.png
             FILE ${CMAKE_CURRENT_SOURCE_DIR}/../vitaports/tdtest_livearea/startup.png sce_sys/livearea/contents/startup.png
             FILE ${CMAKE_CURRENT_SOURCE_DIR}/../vitaports/tdtest_livearea/template.xml sce_sys/livearea/contents/template.xml)
+
+    add_custom_target(send
+            COMMAND echo destroy | nc ${PSVITAIP} 1338
+            COMMAND curl -T eboot.bin ftp://${PSVITAIP}:1337/ux0:/app/${VITA_TITLEID}/
+            COMMAND echo launch ${VITA_TITLEID} | nc ${PSVITAIP} 1338
+            DEPENDS eboot.bin)
+
+    return()
   endif()
+
+  add_test(run_all_tests run_all_tests)
 
 endif()
