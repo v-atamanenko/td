@@ -28,8 +28,9 @@ if (__vita__)
   include("${VITASDK}/share/vita.cmake" REQUIRED)
   set(CMAKE_CROSSCOMPILING TEMP_CMAKE_CROSSCOMPILING)
 
-  set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
-  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fpermissive")
+  # For debugging add -g -O0
+  set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
 
   set(VITA_APP_NAME "TdLib Tests")
   set(VITA_TITLEID  "TDLIBTEST")
@@ -110,15 +111,8 @@ if ((NOT CMAKE_CROSSCOMPILING OR EMSCRIPTEN) OR __vita__)
   target_link_libraries(test-online PRIVATE tdcore tdclient tdutils tdactor)
 
   if (__vita__)
-    target_link_libraries(test-tdutils PRIVATE
-          SceNet_stub
-          SceNetCtl_stub
-          SceHttp_stub
-          SceSsl_stub
-          SceSysmodule_stub
-          SceAppMgr_stub
-          SceAppUtil_stub)
     target_link_libraries(run_all_tests PRIVATE
+          pthread
           SceNet_stub
           SceNetCtl_stub
           SceHttp_stub
@@ -126,15 +120,7 @@ if ((NOT CMAKE_CROSSCOMPILING OR EMSCRIPTEN) OR __vita__)
           SceSysmodule_stub
           SceAppMgr_stub
           SceAppUtil_stub)
-    target_link_libraries(test-online PRIVATE
-          SceNet_stub
-          SceNetCtl_stub
-          SceHttp_stub
-          SceSsl_stub
-          SceSysmodule_stub
-          SceAppMgr_stub
-          SceAppUtil_stub)
-  endif()
+    endif()
 
   if (CLANG)
 #    add_executable(fuzz_url fuzz_url.cpp)

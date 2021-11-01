@@ -22,6 +22,10 @@ char disable_linker_warning_about_empty_file_thread_pthread_cpp TD_UNUSED;
 namespace td {
 namespace detail {
 unsigned ThreadPthread::hardware_concurrency() {
+#if defined(__vita__)
+  return 3;
+#endif
+
 // Linux and macOS
 #if defined(_SC_NPROCESSORS_ONLN)
   {

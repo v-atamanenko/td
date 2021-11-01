@@ -47,9 +47,9 @@
   #error "Poll's implementation is not defined"
 #endif
 
-#if TD_EMSCRIPTEN || TD_VITA
+#if TD_EMSCRIPTEN
   #define TD_THREAD_UNSUPPORTED 1
-#elif TD_TIZEN || TD_LINUX || TD_DARWIN
+#elif TD_TIZEN || TD_LINUX || TD_DARWIN || TD_VITA
   #define TD_THREAD_PTHREAD 1
 #else
   #define TD_THREAD_STL 1

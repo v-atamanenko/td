@@ -129,7 +129,7 @@ function(td_set_up_compiler)
     add_cxx_compiler_flag("-Qunused-arguments")
     add_cxx_compiler_flag("-Wodr")
     add_cxx_compiler_flag("-flto-odr-type-merging")
-    
+
     if (__vita__)
       add_cxx_compiler_flag("-Wno-psabi") # "parameter passing for argument changed in GCC 7.1" (arm-vita-eabi)
       add_cxx_compiler_flag("-Wunused-function")
@@ -169,10 +169,12 @@ function(td_set_up_compiler)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=leak")
-  if (__vita__)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
-  endif()
+
+  # For debugging
+  # if (__vita__)
+  #   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
+  #   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
+  # endif()
 
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" PARENT_SCOPE)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}" PARENT_SCOPE)

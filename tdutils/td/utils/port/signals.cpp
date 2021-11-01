@@ -82,6 +82,9 @@ static void set_handler(struct sigaction &act, decltype(act.sa_sigaction) handle
 }
 template <class F>
 static Status set_signal_handler_impl(vector<int> &&signals, F func) {
+#ifdef TD_VITA
+  return Status::OK();
+#endif
   struct sigaction act;
   std::memset(&act, '\0', sizeof(act));
 
