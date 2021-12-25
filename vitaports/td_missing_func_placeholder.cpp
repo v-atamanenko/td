@@ -17,24 +17,8 @@ int usleep(unsigned useconds) {
   return sceKernelDelayThread(useconds);
 }
 
-int chdir (const char *__path) {
-  fprintf(stderr, "[WARNING] chdir used\n");
-  errno = ENOSYS;
-  return -1;
-}
-
 int utimes (const char *, const struct timeval [2]) {
   fprintf(stderr, "[WARNING] utimes used\n");
-  return -1;
-}
-
-char * getcwd (char *__buf, size_t size) {
-  fprintf(stderr, "[WARNING] getcwd used\n");
-  return nullptr;
-}
-
-int fchmod (int __fildes, mode_t __mode) {
-  fprintf(stderr, "[WARNING] fchmod used\n");
   return -1;
 }
 
@@ -50,11 +34,6 @@ uid_t geteuid (void){
 
 ssize_t readlink (const char *__restrict __path, char *__restrict __buf, size_t __buflen){
   fprintf(stderr, "[WARNING] readlink used\n");
-  return -1;
-}
-
-int lstat (const char *__restrict __path, struct stat *__restrict __buf ){
-  fprintf(stderr, "[WARNING] lstat used\n");
   return -1;
 }
 
